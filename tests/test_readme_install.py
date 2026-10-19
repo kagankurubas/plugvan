@@ -75,3 +75,12 @@ def test_pythonpath_only_in_the_checkout_config(heading):
 def test_english_and_turkish_show_the_same_json_examples():
     english, turkish = (_json_blocks(heading) for heading in SECTIONS)
     assert english == turkish
+
+
+def test_powershell_blocks_do_not_run_bare_where():
+    # In PowerShell `where` is an alias of Where-Object and prints nothing; `where.exe` works.
+    text = README.read_text(encoding="utf-8")
+    blocks = re.findall(r"^```powershell\n(.*?)^```$", text, re.MULTILINE | re.DOTALL)
+    assert blocks
+    offending = [block for block in blocks if re.search(r"(?m)^\s*where\s", block)]
+    assert not offending, offending

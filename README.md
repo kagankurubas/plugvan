@@ -101,8 +101,9 @@ Claude Desktop starts Plugvan from the release wheel; nothing needs to be cloned
 1. Install uv, which provides `uvx`: follow the [official installation guide](https://docs.astral.sh/uv/getting-started/installation/), or on Windows run `winget install --id=astral-sh.uv -e`.
 2. In a new terminal, find the full path of `uvx`:
 ```powershell
-where uvx
+where.exe uvx
 ```
+   In PowerShell, plain `where` is an alias of `Where-Object` and prints nothing, so use `where.exe`.
    Claude Desktop does not use your shell's `PATH`, so `"command"` must be this full path.
 3. In Claude Desktop, open **Settings ➔ Developer ➔ Edit Config**, which opens the folder with `claude_desktop_config.json`, and add the `todoist` server (if the file already has `mcpServers`, add the `todoist` entry inside it). Replace `C:\\path\\to\\uvx.exe` with the path from step 2, writing each `\` as `\\`, and `<your token>` with your Todoist API token:
 ```json
@@ -289,8 +290,9 @@ Claude Desktop, Plugvan'ı sürümdeki wheel dosyasından başlatır; depoyu klo
 1. `uvx`'i sağlayan uv'yi kurun: [resmi kurulum kılavuzunu](https://docs.astral.sh/uv/getting-started/installation/) izleyin ya da Windows'ta `winget install --id=astral-sh.uv -e` komutunu çalıştırın.
 2. Yeni bir terminalde `uvx`'in tam yolunu bulun:
 ```powershell
-where uvx
+where.exe uvx
 ```
+   PowerShell'de düz `where`, `Where-Object` komutunun takma adıdır ve hiçbir şey yazdırmaz; bu yüzden `where.exe` kullanın.
    Claude Desktop kabuğunuzun `PATH` değişkenini kullanmaz; bu yüzden `"command"` bu tam yol olmalıdır.
 3. Claude Desktop'ta **Settings ➔ Developer ➔ Edit Config** ile `claude_desktop_config.json` dosyasının bulunduğu klasörü açın ve `todoist` sunucusunu ekleyin (dosyada zaten `mcpServers` varsa `todoist` girdisini onun içine ekleyin). `C:\\path\\to\\uvx.exe` yerine 2. adımdaki yolu (JSON'da her `\` işaretini `\\` olarak yazarak), `<your token>` yerine Todoist API token'ınızı yazın:
 ```json
