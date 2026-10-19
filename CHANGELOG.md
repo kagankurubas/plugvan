@@ -140,3 +140,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Backlog
 - `update_section`: expose `order` and `collapsed` (supported by the SDK).
 - `project_move`: needs the Sync API's separate command.
+
+## [0.1.0rc1] - 2026-10-19
+
+Release candidate for 0.1.0.
