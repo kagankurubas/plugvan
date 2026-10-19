@@ -71,6 +71,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   with `"PYTHONPATH": "<REPO_PATH>"` in `env`, then restart Claude Desktop.
 
 ### Added
+- Tag-triggered GitHub Releases (#62): pushing a `v<version>` tag on a
+  commit on `main` creates a GitHub Release with the sdist and wheel that
+  the `package (ubuntu-24.04, Python 3.10)` job built and tested in the
+  same run, after every test and package job passed. The tag must be
+  exactly `v` + the `pyproject.toml` version, and the release notes are
+  that version's CHANGELOG section. Tags containing `rc` are published
+  as prereleases.
 - CI package jobs (#61): `package (ubuntu-24.04, Python 3.10)` builds the
   sdist and wheel once, checks their contents against an allowlist and a
   ban list, installs the wheel into a clean venv and runs the
@@ -88,15 +95,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `test` extra (#58).
 - Name-resolution tests: the four resolver outcomes, ambiguity and the
   5-candidate cap, no write on any error, and no exception text or HTTP
-  response in tool output or logs. Suite: 183 → 254.
+  response in tool output or logs.
 - MCP tool surface snapshot test: all 22 tools' name, description,
   input and output schema are compared against a fixture recorded before
-  the move. Suite: 181 → 183.
+  the move.
 - `update_section` MCP tool: rename a Todoist section by ID or name.
   Optional `project_name_or_id` scopes name resolution so same-named
   sections in different projects can't be confused.
-- 9 tests for `update_section` (rename by name/ID, project scoping,
-  not-found, empty/too-long input, sanitized error). Suite: 172 → 181.
+- Tests for `update_section` (rename by name/ID, project scoping,
+  not-found, empty/too-long input, sanitized error).
 
 ### Removed
 - **The legacy Bridge surface.** The repository is now only the
