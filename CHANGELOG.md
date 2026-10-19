@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- README: install Plugvan for Claude Desktop without a clone, with uvx
+  or pip from the release wheel; the token goes in the config's `env`
+  block (#63).
 - HTTP response bodies of failed Todoist API calls are logged only at
   DEBUG level (#57). The HTTP status is still logged at ERROR. Response
   bodies can echo user content and account data, so they no longer appear

@@ -92,6 +92,79 @@ plugvan/
 
 ### 🚀 Getting Started
 
+#### Install from the release (no clone)
+
+Claude Desktop starts Plugvan from the release wheel; nothing needs to be cloned. Verified so far: Windows with Claude Desktop. CI also installs and tests the built wheel on Ubuntu and Windows. macOS and Linux with Claude Desktop have not been verified, so the steps below are for Windows.
+
+**Option A: uvx (recommended)**
+
+1. Install uv, which provides `uvx`: follow the [official installation guide](https://docs.astral.sh/uv/getting-started/installation/), or on Windows run `winget install --id=astral-sh.uv -e`.
+2. In a new terminal, find the full path of `uvx`:
+```powershell
+where uvx
+```
+   Claude Desktop does not use your shell's `PATH`, so `"command"` must be this full path.
+3. In Claude Desktop, open **Settings ➔ Developer ➔ Edit Config**, which opens the folder with `claude_desktop_config.json`, and add the `todoist` server (if the file already has `mcpServers`, add the `todoist` entry inside it). Replace `C:\\path\\to\\uvx.exe` with the path from step 2, writing each `\` as `\\`, and `<your token>` with your Todoist API token:
+```json
+{
+  "mcpServers": {
+    "todoist": {
+      "command": "C:\\path\\to\\uvx.exe",
+      "args": [
+        "--from",
+        "https://github.com/kagankurubas/plugvan/releases/download/v0.1.0/plugvan_mcp-0.1.0-py3-none-any.whl",
+        "plugvan-mcp",
+        "todoist"
+      ],
+      "env": {
+        "TODOIST_API_TOKEN": "<your token>"
+      }
+    }
+  }
+}
+```
+4. Restart Claude Desktop.
+
+**Option B: pip into a virtual environment**
+
+This install was verified from the Windows terminal; starting it from Claude Desktop with the config below has not been verified yet.
+```powershell
+python -m venv C:\path\to\plugvan-venv
+C:\path\to\plugvan-venv\Scripts\python.exe -m pip install https://github.com/kagankurubas/plugvan/releases/download/v0.1.0/plugvan_mcp-0.1.0-py3-none-any.whl
+```
+Then use the venv's `plugvan-mcp.exe` as `"command"` (again with `\\` in JSON):
+```json
+{
+  "mcpServers": {
+    "todoist": {
+      "command": "C:\\path\\to\\plugvan-venv\\Scripts\\plugvan-mcp.exe",
+      "args": ["todoist"],
+      "env": {
+        "TODOIST_API_TOKEN": "<your token>"
+      }
+    }
+  }
+}
+```
+
+**Check the install (optional)**
+```powershell
+C:\path\to\uvx.exe --from https://github.com/kagankurubas/plugvan/releases/download/v0.1.0/plugvan_mcp-0.1.0-py3-none-any.whl plugvan-mcp --version
+C:\path\to\plugvan-venv\Scripts\plugvan-mcp.exe --version
+```
+Each prints `plugvan-mcp <version>`, for example `plugvan-mcp 0.1.0`.
+
+**Configuration and security**
+- `TODOIST_API_TOKEN` (required) goes in the config's `env` block: in [Todoist Web](https://todoist.com) ➔ Settings ➔ **Integrations** ➔ **Developer**, copy your API token. For Turkish tool results, add `"PLUGVAN_LANG": "tr"` to the same block (`en` is the default).
+- The installed `plugvan-mcp` command does not read a `.env` file; only `python -m plugvan.todoist` in a clone does.
+
+> [!CAUTION]
+> The token in the `env` block is stored in plain text in `claude_desktop_config.json`, which is no better and no worse than a `.env` file. Keep that file private: do not share it or commit it to a repository.
+
+#### Run from a clone (contributors)
+
+For development, or to run the server from a source checkout, follow steps 1–3 below and Method 1 under Usage Methods.
+
 #### 1. Clone the Repository
 ```bash
 git clone https://github.com/kagankurubas/plugvan.git
@@ -140,7 +213,7 @@ TODOIST_API_TOKEN=your_todoist_api_token_here
 #### Method 1: Claude Desktop (Model Context Protocol - MCP)
 Integrate Todoist directly into your Claude Desktop application.
 
-1. Open `%APPDATA%\Claude\claude_desktop_config.json` (or **Settings ➔ Developer ➔ Edit Config** in Claude Desktop).
+1. In Claude Desktop, open **Settings ➔ Developer ➔ Edit Config**.
 2. Add the `todoist` server configuration (replace `<REPO_PATH>` with your project path):
 ```json
 {
@@ -207,6 +280,79 @@ plugvan/
 
 ### 🚀 Kurulum ve Başlangıç
 
+#### Sürümden kurulum (klonlamadan)
+
+Claude Desktop, Plugvan'ı sürümdeki wheel dosyasından başlatır; depoyu klonlamanız gerekmez. Şu ana kadar doğrulanan: Claude Desktop ile Windows. CI ayrıca derlenen wheel'i Ubuntu ve Windows'ta kurup test eder. Claude Desktop ile macOS ve Linux doğrulanmadı; bu yüzden aşağıdaki adımlar Windows içindir.
+
+**A seçeneği: uvx (önerilen)**
+
+1. `uvx`'i sağlayan uv'yi kurun: [resmi kurulum kılavuzunu](https://docs.astral.sh/uv/getting-started/installation/) izleyin ya da Windows'ta `winget install --id=astral-sh.uv -e` komutunu çalıştırın.
+2. Yeni bir terminalde `uvx`'in tam yolunu bulun:
+```powershell
+where uvx
+```
+   Claude Desktop kabuğunuzun `PATH` değişkenini kullanmaz; bu yüzden `"command"` bu tam yol olmalıdır.
+3. Claude Desktop'ta **Settings ➔ Developer ➔ Edit Config** ile `claude_desktop_config.json` dosyasının bulunduğu klasörü açın ve `todoist` sunucusunu ekleyin (dosyada zaten `mcpServers` varsa `todoist` girdisini onun içine ekleyin). `C:\\path\\to\\uvx.exe` yerine 2. adımdaki yolu (JSON'da her `\` işaretini `\\` olarak yazarak), `<your token>` yerine Todoist API token'ınızı yazın:
+```json
+{
+  "mcpServers": {
+    "todoist": {
+      "command": "C:\\path\\to\\uvx.exe",
+      "args": [
+        "--from",
+        "https://github.com/kagankurubas/plugvan/releases/download/v0.1.0/plugvan_mcp-0.1.0-py3-none-any.whl",
+        "plugvan-mcp",
+        "todoist"
+      ],
+      "env": {
+        "TODOIST_API_TOKEN": "<your token>"
+      }
+    }
+  }
+}
+```
+4. Claude Desktop'ı tamamen kapatıp yeniden başlatın.
+
+**B seçeneği: sanal ortama pip ile kurulum**
+
+Bu kurulum Windows terminalinden doğrulandı; aşağıdaki yapılandırmayla Claude Desktop'tan başlatılması henüz doğrulanmadı.
+```powershell
+python -m venv C:\path\to\plugvan-venv
+C:\path\to\plugvan-venv\Scripts\python.exe -m pip install https://github.com/kagankurubas/plugvan/releases/download/v0.1.0/plugvan_mcp-0.1.0-py3-none-any.whl
+```
+Ardından `"command"` olarak sanal ortamdaki `plugvan-mcp.exe` dosyasını kullanın (JSON'da yine `\\` ile):
+```json
+{
+  "mcpServers": {
+    "todoist": {
+      "command": "C:\\path\\to\\plugvan-venv\\Scripts\\plugvan-mcp.exe",
+      "args": ["todoist"],
+      "env": {
+        "TODOIST_API_TOKEN": "<your token>"
+      }
+    }
+  }
+}
+```
+
+**Kurulumu kontrol etme (isteğe bağlı)**
+```powershell
+C:\path\to\uvx.exe --from https://github.com/kagankurubas/plugvan/releases/download/v0.1.0/plugvan_mcp-0.1.0-py3-none-any.whl plugvan-mcp --version
+C:\path\to\plugvan-venv\Scripts\plugvan-mcp.exe --version
+```
+Her ikisi de `plugvan-mcp <sürüm>` yazdırır, örneğin `plugvan-mcp 0.1.0`.
+
+**Yapılandırma ve güvenlik**
+- `TODOIST_API_TOKEN` (zorunlu) yapılandırmanın `env` bloğuna yazılır: [Todoist Web](https://todoist.com) ➔ Ayarlar ➔ **Entegrasyonlar** ➔ **Geliştirici** ➔ API belirtecinizi kopyalayın. Araç sonuçlarını Türkçe almak için aynı bloğa `"PLUGVAN_LANG": "tr"` ekleyin (varsayılan `en`).
+- Kurulan `plugvan-mcp` komutu `.env` dosyasını okumaz; `.env` dosyasını yalnızca klondaki `python -m plugvan.todoist` okur.
+
+> [!CAUTION]
+> `env` bloğundaki token, `claude_desktop_config.json` içinde düz metin olarak saklanır; bu bir `.env` dosyasından ne daha iyi ne daha kötüdür. Bu dosyayı gizli tutun: kimseyle paylaşmayın ve bir depoya eklemeyin.
+
+#### Klondan çalıştırma (geliştiriciler için)
+
+Geliştirme için ya da sunucuyu kaynak kodundan çalıştırmak için aşağıdaki 1–3. adımları ve Kullanım Yöntemleri altındaki 1. Yöntem'i izleyin.
+
 #### 1. Projeyi Klonlayın
 ```bash
 git clone https://github.com/kagankurubas/plugvan.git
@@ -252,7 +398,7 @@ TODOIST_API_TOKEN=kendi_todoist_api_tokeniniz
 #### 1. Yöntem: Claude Desktop ile Kullanım (MCP Sunucusu)
 Claude Desktop uygulamanıza Todoist yeteneği kazandırmak için:
 
-1. `%APPDATA%\Claude\claude_desktop_config.json` dosyasını açın (veya Claude Desktop ➔ **Settings ➔ Developer ➔ Edit Config**).
+1. Claude Desktop'ta **Settings ➔ Developer ➔ Edit Config**'i açın.
 2. Aşağıdaki yapılandırmayı ekleyin (`<REPO_PATH>` yerine kendi proje yolunuzu yazın):
 ```json
 {
