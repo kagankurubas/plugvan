@@ -4,6 +4,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-19
+
 ### Changed
 - README: install Plugvan for Claude Desktop without a clone, with uvx
   or pip from the release wheel; the token goes in the config's `env`
