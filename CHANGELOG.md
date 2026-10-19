@@ -4,7 +4,72 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Backlog
+- `update_section`: expose `order` and `collapsed` (supported by the SDK).
+- `project_move`: needs the Sync API's separate command.
+
 ## [0.1.0] - 2026-10-19
+
+First public release of Plugvan: Todoist tools for Claude Desktop as an
+MCP server over STDIO. It runs locally; Claude Desktop starts it as a
+subprocess, so no web server or deployment is needed.
+
+### Added
+- Todoist tools for tasks (with subtasks and deadlines), projects (with
+  subprojects), sections, labels and comments.
+- Validated inputs and clear errors. Project, section and label names
+  are matched case-insensitively, with Turkish/Unicode normalization. An
+  unknown name returns an error and nothing is written; when several
+  items match, the tool lists up to 5 candidates as `name (ID)` and asks
+  for the ID. The delete and update tools for projects, sections and
+  labels accept only an ID or an exact name. Names are limited to 120
+  characters for projects and sections and 60 for labels.
+- Tool results in English (default) or Turkish, selected with the
+  `PLUGVAN_LANG` environment variable (`en` or `tr`). Tool descriptions
+  and logs are always English.
+- Install without cloning (#63): the `plugvan-mcp` distribution (Python
+  3.10+) installs from the release wheel with uvx or with pip into a
+  virtual environment, and `plugvan-mcp todoist` starts the server. The
+  README has the Claude Desktop configs. `plugvan-mcp --version` prints
+  the installed version.
+- Configuration in the Claude Desktop config's `env` block:
+  `TODOIST_API_TOKEN` and the optional `PLUGVAN_LANG`. `plugvan-mcp`
+  does not read a `.env` file.
+- Each release ships a wheel and an sdist as assets.
+
+### Security
+- HTTP response bodies of failed Todoist API calls are logged only at
+  DEBUG level (#57); the HTTP status is still logged at ERROR. Response
+  bodies can echo user content and account data, so they stay out of the
+  default (INFO) logs.
+- The token in the `env` block is stored in plain text in
+  `claude_desktop_config.json`; keep that file private and never commit
+  it to a repository.
+
+### Removed
+- The legacy Bridge code (webhook server, Google Tasks sync worker,
+  Gemini tool schema) is removed; it is preserved at the tag
+  `legacy-bridge-final`.
+
+### Upgrading from a checkout
+- If you ran the server from a checkout before, update a Claude Desktop
+  config that runs `todoist_mcp.py` to `"args": ["-m", "plugvan.todoist"]`
+  with `"PYTHONPATH": "<REPO_PATH>"` in `env`, then restart Claude
+  Desktop.
+- Tool results now default to English. To keep Turkish output, set
+  `PLUGVAN_LANG=tr` in `.env` or in the `env` block of the Claude Desktop
+  config, then restart Claude Desktop.
+- `requirements.txt` is replaced by `pip install -e ".[test]"`: in an
+  existing checkout venv, run it instead of
+  `pip install -r requirements.txt`.
+
+## [0.1.0rc1] - 2026-10-19
+
+Release candidate for 0.1.0.
+
+## Development history (before 0.1.0)
+
+Detailed entries from development before the first release, kept for reference.
 
 ### Changed
 - README: install Plugvan for Claude Desktop without a clone, with uvx
@@ -141,11 +206,3 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   3.13 compiler's docstring cleaning, so every supported version publishes
   the same descriptions as 3.13+. Tool docstrings, names and schemas are
   unchanged.
-
-### Backlog
-- `update_section`: expose `order` and `collapsed` (supported by the SDK).
-- `project_move`: needs the Sync API's separate command.
-
-## [0.1.0rc1] - 2026-10-19
-
-Release candidate for 0.1.0.
