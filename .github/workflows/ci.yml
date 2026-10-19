@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
+    # Release tags. Only the `release` job is limited to them; every other job runs as on main.
+    tags: ['v*']
   pull_request:
     # Default types plus label changes, so adding/removing `surface-change` re-runs the checks.
     types: [opened, synchronize, reopened, labeled, unlabeled]
@@ -148,3 +150,70 @@ jobs:
 
       - name: Install the wheel and run the installed-mode tests
         run: python scripts/run_installed_tests.py dist
+
+  # Turns a pushed `v<version>` tag into a GitHub Release, only after every pytest and package
+  # cell of the same run passed. It never builds: it publishes the sdist and wheel the ubuntu
+  # package job built, checked and tested, downloaded from this run's `dist` artifact. Skipped on
+  # pull requests and branch pushes. The only job with write access.
+  release:
+    name: release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [tests, package-ubuntu, package-windows]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      # Full history, so origin/main is available for the reachability check below.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Only a commit already merged into main can be released. Any non-zero exit of
+      # merge-base (not an ancestor, or an unknown commit or ref) fails the job.
+      - name: Check that the tagged commit is on main
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::The tagged commit $GITHUB_SHA is not reachable from origin/main. Release tags must point at a commit on main (the merged release PR); delete this tag and tag a commit on main."
+            exit 1
+          fi
+          echo "The tagged commit $GITHUB_SHA is reachable from origin/main."
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      # Fails before anything is created if the tag is not exactly "v" + the pyproject.toml
+      # version, or if that version's CHANGELOG section is missing or empty. Its only stdout
+      # line is `prerelease=true|false`.
+      - name: Check the tag and extract the release notes
+        id: rules
+        env:
+          TAG: ${{ github.ref_name }}
+        run: python scripts/release_rules.py "$TAG" pyproject.toml CHANGELOG.md "$RUNNER_TEMP/release-notes.md" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist
+
+      # Exactly one sdist and one wheel, still within the allowlist; prints their sha256 for
+      # comparison with the package jobs' logs.
+      - name: Check archive contents
+        run: python scripts/check_dist_contents.py dist
+
+      # The notes are the CHANGELOG section only (no --generate-notes); --verify-tag refuses to
+      # create a tag that does not already exist on the remote.
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ steps.rules.outputs.prerelease }}
+        run: >-
+          gh release create "$TAG" dist/*.tar.gz dist/*.whl
+          --repo "$GITHUB_REPOSITORY"
+          --title "$TAG"
+          --notes-file "$RUNNER_TEMP/release-notes.md"
+          --prerelease="$PRERELEASE"
+          --verify-tag
