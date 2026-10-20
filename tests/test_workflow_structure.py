@@ -5,20 +5,34 @@ only what the workflow has today; nothing here describes a job that does not exi
 
 - the workflow-level `permissions` are exactly `contents: read`, and `contents: write` appears
   only on `release`;
-- no job and no workflow-level block has `id-token`;
+- `id-token` appears only on `publish-testpypi`, whose permissions are exactly `id-token: write`;
 - every `uses:` is pinned to a full 40-hex commit SHA;
 - nothing references `secrets.`;
 - the job display names, with the test matrix expanded, are exactly the `main` ruleset's nine
-  required checks plus `release`;
+  required checks plus the tag-only jobs (`release`, `publish (TestPyPI)`, `verify (TestPyPI)`),
+  which never collide with them;
 - `release` needs exactly the tests and both package jobs and keeps its tag-only `if:` guard;
 - the concurrency group contains `github.ref` and cancels in-progress runs, so a push to `main`
   never cancels a tag run;
 - the `dist` artifact upload keeps `retention-days: 7`, the re-run window of the release procedure;
 - the release job's "Check archive contents" step passes `--expected-version "${TAG#v}"`, with
   `TAG` set from `${{ github.ref_name }}` in the step's `env`, and its `run:` text holds no
-  `${{ }}` expression, so the tag name never becomes part of the shell script.
+  `${{ }}` expression, so the tag name never becomes part of the shell script;
+- `release` exposes the release rules' `prerelease` step output and a `version` output; the step
+  that writes `version` (the tag without its `v`, `TAG` from `env`, no `${{ }}` in `run:`) comes
+  right after the release rules step, with no `if:`, so it runs only when the rules passed;
+- `publish-testpypi` needs `release`, runs only when `prerelease` is `'true'`, uses the `testpypi`
+  environment with the version's TestPyPI page as its URL, has a short timeout, and its only
+  steps are downloading the `dist` artifact and the
+  publish action with the TestPyPI upload URL as its only input: no `run:` step, no user,
+  password or token, no `skip-existing`;
+- `verify-testpypi` needs `publish-testpypi` (and `release`, for its outputs), has the same `if:`,
+  permissions exactly `contents: read` (no `id-token`), runs scripts/verify_index_upload.py
+  against TestPyPI with the version from `env` (no `${{ }}` in `run:`), and its timeout covers
+  the script's whole retry window.
 """
 
+import importlib.util
 import itertools
 import re
 import shlex
@@ -39,6 +53,11 @@ REQUIRED_CHECKS = {
     "package (windows-2025, Python 3.14)",
 }
 RELEASE_GUARD = "github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')"
+PUBLISH_TESTPYPI = "publish-testpypi"
+VERIFY_TESTPYPI = "verify-testpypi"
+TAG_ONLY_JOB_NAMES = {"release", "publish (TestPyPI)", "verify (TestPyPI)"}
+TESTPYPI_UPLOAD_URL = "https://test.pypi.org/legacy/"
+TESTPYPI_VERSION_PAGE = "https://test.pypi.org/project/plugvan-mcp/${{ needs.release.outputs.version }}/"
 PINNED_ACTION = re.compile(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}")
 
 
@@ -87,13 +106,13 @@ def test_contents_write_only_on_release():
     assert writers == ["release"]
 
 
-def test_no_id_token_permission_anywhere():
+def test_id_token_write_only_on_publish_testpypi():
     blocks = {"<workflow>": _workflow().get("permissions")} | {
         job_id: job.get("permissions") for job_id, job in _jobs().items()
     }
-    offending = [where for where, permissions in blocks.items() if isinstance(permissions, dict) and "id-token" in permissions]
-    assert not offending, offending
-    assert "id-token" not in WORKFLOW.read_text(encoding="utf-8")
+    holders = [where for where, permissions in blocks.items() if isinstance(permissions, dict) and "id-token" in permissions]
+    assert holders == [PUBLISH_TESTPYPI], holders
+    assert _jobs()[PUBLISH_TESTPYPI]["permissions"] == {"id-token": "write"}
 
 
 def test_every_action_is_pinned_to_a_full_commit_sha():
@@ -107,10 +126,11 @@ def test_no_secrets_reference():
     assert not re.search(r"\bsecrets\s*\.", WORKFLOW.read_text(encoding="utf-8"))
 
 
-def test_job_names_are_the_nine_required_checks_plus_release():
+def test_job_names_are_the_nine_required_checks_plus_the_tag_only_jobs():
     names = [name for job_id, job in _jobs().items() for name in _display_names(job_id, job)]
     assert len(names) == len(set(names)), names
-    assert set(names) == REQUIRED_CHECKS | {"release"}
+    assert set(names) == REQUIRED_CHECKS | TAG_ONLY_JOB_NAMES
+    assert not REQUIRED_CHECKS & TAG_ONLY_JOB_NAMES
 
 
 def test_release_needs_the_tests_and_both_package_jobs_and_runs_only_for_tags():
@@ -150,3 +170,71 @@ def test_release_archive_check_gets_the_tag_version_through_env():
 
 def test_release_archive_check_run_has_no_expression():
     assert "${{" not in _release_archive_check()["run"]
+
+
+def test_release_exposes_the_prerelease_and_version_outputs():
+    assert _jobs()["release"]["outputs"] == {
+        "prerelease": "${{ steps.rules.outputs.prerelease }}",
+        "version": "${{ steps.version.outputs.version }}",
+    }
+
+
+def test_release_version_step_directly_follows_the_release_rules():
+    steps = _jobs()["release"]["steps"]
+    ids = [step.get("id") for step in steps]
+    assert ids.count("rules") == 1 and ids.count("version") == 1
+    assert ids.index("version") == ids.index("rules") + 1
+    step = steps[ids.index("version")]
+    assert "if" not in step  # runs only when every earlier step, the release rules included, passed
+    assert step.get("env") == {"TAG": "${{ github.ref_name }}"}
+    assert step["run"] == 'echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"'
+    assert "${{" not in step["run"]
+
+
+def test_publish_testpypi_runs_after_release_for_rc_tags_in_the_testpypi_environment():
+    job = _jobs()[PUBLISH_TESTPYPI]
+    assert job["needs"] in ("release", ["release"])
+    assert job["if"] == "needs.release.outputs.prerelease == 'true'"
+    assert job["environment"] == {"name": "testpypi", "url": TESTPYPI_VERSION_PAGE}
+    assert 0 < job["timeout-minutes"] <= 10
+
+
+def test_publish_testpypi_only_downloads_dist_and_publishes_to_testpypi():
+    steps = _jobs()[PUBLISH_TESTPYPI]["steps"]
+    assert [step.get("run") for step in steps] == [None, None], "no run: steps (and so no checkout script)"
+    download, publish = steps
+    assert download["uses"].startswith("actions/download-artifact@")
+    assert download["with"] == {"name": "dist", "path": "dist"}
+    assert publish["uses"].startswith("pypa/gh-action-pypi-publish@")
+    # Only the TestPyPI upload URL: no user, password or token input, and skip-existing left off.
+    assert publish["with"] == {"repository-url": TESTPYPI_UPLOAD_URL}
+
+
+def test_verify_testpypi_runs_after_the_upload_without_id_token():
+    job = _jobs()[VERIFY_TESTPYPI]
+    assert sorted(job["needs"]) == ["publish-testpypi", "release"]
+    assert job["if"] == "needs.release.outputs.prerelease == 'true'"
+    assert job["permissions"] == {"contents": "read"}
+    assert "id-token" not in job["permissions"]
+
+
+def test_verify_testpypi_checks_the_testpypi_listing_within_its_timeout():
+    job = _jobs()[VERIFY_TESTPYPI]
+    steps = [step for step in job["steps"] if "run" in step]
+    assert len(steps) == 1
+    step = steps[0]
+    assert step.get("env") == {"VERSION": "${{ needs.release.outputs.version }}"}
+    assert shlex.split(step["run"]) == [
+        "python", "scripts/verify_index_upload.py", "https://test.pypi.org/pypi", "plugvan-mcp", "$VERSION", "dist",
+    ]
+    assert "${{" not in step["run"]
+    # The script's whole retry window, plus a margin for checkout, setup and download, fits the timeout.
+    assert job["timeout-minutes"] * 60 >= _verify_script().WORST_CASE_SECONDS + 120
+
+
+def _verify_script():
+    path = WORKFLOW.parents[2] / "scripts" / "verify_index_upload.py"
+    spec = importlib.util.spec_from_file_location("verify_index_upload", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
