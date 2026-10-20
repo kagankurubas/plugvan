@@ -241,13 +241,16 @@ def test_main_rejects_a_non_canonical_version(tmp_path, capsys, version):
 
 
 @needs_tomllib
-@pytest.mark.parametrize("version", CANONICAL_VERSIONS)
-def test_main_accepts_a_canonical_version(tmp_path, capsys, version):
+@pytest.mark.parametrize(
+    "version, prerelease",
+    [("0.1.1", "false"), ("0.1.1rc1", "true"), ("10.0.0rc12", "true"), ("0.0.0", "false")],
+)
+def test_main_accepts_a_canonical_version(tmp_path, capsys, version, prerelease):
     script = _load_script()
     pyproject, changelog_path = _project(tmp_path, version, _changelog_for(version))
     notes = tmp_path / "notes.md"
     assert script.main([f"v{version}", str(pyproject), str(changelog_path), str(notes)]) == 0
-    assert capsys.readouterr().out == f"prerelease={'true' if 'rc' in version else 'false'}\n"
+    assert capsys.readouterr().out == f"prerelease={prerelease}\n"
     assert notes.read_text(encoding="utf-8") == f"- Release {version}.\n"
 
 

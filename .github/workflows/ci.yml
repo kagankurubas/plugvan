@@ -191,9 +191,9 @@ jobs:
         with:
           python-version: "3.14"
 
-      # Fails before anything is created if the tag is not exactly "v" + the pyproject.toml
-      # version, or if that version's CHANGELOG section is missing or empty. Its only stdout
-      # line is `prerelease=true|false`.
+      # Fails before anything is created if the pyproject.toml version is not canonical
+      # (X.Y.Z or X.Y.ZrcN), if the tag is not exactly "v" + that version, or if that version's
+      # CHANGELOG section is missing or empty. Its only stdout line is `prerelease=true|false`.
       - name: Check the tag and extract the release notes
         id: rules
         env:
