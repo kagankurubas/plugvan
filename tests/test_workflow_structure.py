@@ -13,11 +13,15 @@ only what the workflow has today; nothing here describes a job that does not exi
 - `release` needs exactly the tests and both package jobs and keeps its tag-only `if:` guard;
 - the concurrency group contains `github.ref` and cancels in-progress runs, so a push to `main`
   never cancels a tag run;
-- the `dist` artifact upload keeps `retention-days: 7`, the re-run window of the release procedure.
+- the `dist` artifact upload keeps `retention-days: 7`, the re-run window of the release procedure;
+- the release job's "Check archive contents" step passes `--expected-version "${TAG#v}"`, with
+  `TAG` set from `${{ github.ref_name }}` in the step's `env`, and its `run:` text holds no
+  `${{ }}` expression, so the tag name never becomes part of the shell script.
 """
 
 import itertools
 import re
+import shlex
 from pathlib import Path
 
 import yaml
@@ -128,3 +132,21 @@ def test_dist_artifact_is_kept_seven_days():
     ]
     assert len(uploads) == 1
     assert uploads[0]["with"]["retention-days"] == 7
+
+
+def _release_archive_check() -> dict:
+    steps = [step for step in _jobs()["release"]["steps"] if step.get("name") == "Check archive contents"]
+    assert len(steps) == 1
+    return steps[0]
+
+
+def test_release_archive_check_gets_the_tag_version_through_env():
+    step = _release_archive_check()
+    assert step.get("env") == {"TAG": "${{ github.ref_name }}"}
+    args = shlex.split(step["run"])
+    assert args[:3] == ["python", "scripts/check_dist_contents.py", "dist"], args
+    assert args[3:] == ["--expected-version", "${TAG#v}"], args
+
+
+def test_release_archive_check_run_has_no_expression():
+    assert "${{" not in _release_archive_check()["run"]

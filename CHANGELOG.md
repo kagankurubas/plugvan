@@ -11,7 +11,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   on every PR, so the README must render as the PyPI long description.
 - A workflow structure test pins the CI permissions, full-SHA action
   pins, the required check names, the release job's `needs` and tag
-  guard, the per-ref concurrency group and the `dist` artifact retention.
+  guard, the per-ref concurrency group, the `dist` artifact retention,
+  and how the release job passes the tag's version to the archive check
+  (through `env`, never as an expression inside the shell script).
 
 ### Changed
 - Release versions must be canonical, `X.Y.Z` or `X.Y.ZrcN` (#76).
