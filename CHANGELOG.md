@@ -4,6 +4,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- README renders the same on GitHub and PyPI.
+
 ### Fixed
 - README: use `where.exe uvx` so the command also works in PowerShell.
 

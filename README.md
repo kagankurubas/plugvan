@@ -19,38 +19,32 @@
 
 <p align="center">
   <a href="#english">English</a> •
-  <a href="#türkçe">Türkçe</a> •
+  <a href="#turkish">Türkçe</a> •
   <a href="#architecture">Architecture</a> •
   <a href="#tests">Tests</a>
 </p>
 
 ---
 
-<a name="architecture"></a>
-## 🏗️ Architecture & Data Flow / Mimari Akış
+## Architecture
 
-```mermaid
-flowchart TD
-    subgraph Sources["📥 Input Sources"]
-        A1["🤖 Claude Desktop (MCP Client via STDIO)"]
-    end
-
-    subgraph Gateways["🚀 Gateways & Interfaces"]
-        C1["🤖 FastMCP Server (plugvan.todoist)\n[Task/Project Get/Create/Update/Delete, Section, Label, Comment Tools]"]
-    end
-
-    subgraph Todoist["✅ Todoist"]
-        D["🎯 Todoist REST API v1\n(Categorized Tasks, Natural Due Dates & Direct Web Links)"]
-    end
-
-    A1 <-->|STDIO / JSON-RPC| C1
-    C1 -->|Official Python SDK| D
+```text
+Input source:          Claude Desktop (MCP client via STDIO)
+                                 ▲
+                                 │  STDIO / JSON-RPC (both directions)
+                                 ▼
+Gateway / interface:   FastMCP server (plugvan.todoist)
+                       Task/Project Get/Create/Update/Delete, Section, Label, Comment tools
+                                 │
+                                 │  Official Python SDK
+                                 ▼
+Todoist:               Todoist REST API v1
+                       Categorized tasks, natural due dates & direct web links
 ```
 
 ---
 
-<a name="english"></a>
-## 🇬🇧 English
+## English
 
 Plugvan is primarily a local **Model Context Protocol (MCP)** server: Claude Desktop launches it as a subprocess and talks to it over STDIO, so no web server or deployment is needed. It lets an AI assistant manage Todoist through conversation using smart project resolution, natural language due dates, and strict schema validation.
 
@@ -159,8 +153,7 @@ Each prints `plugvan-mcp <version>`, for example `plugvan-mcp 0.1.0`.
 - `TODOIST_API_TOKEN` (required) goes in the config's `env` block: in [Todoist Web](https://todoist.com) ➔ Settings ➔ **Integrations** ➔ **Developer**, copy your API token. For Turkish tool results, add `"PLUGVAN_LANG": "tr"` to the same block (`en` is the default).
 - The installed `plugvan-mcp` command does not read a `.env` file; only `python -m plugvan.todoist` in a clone does.
 
-> [!CAUTION]
-> The token in the `env` block is stored in plain text in `claude_desktop_config.json`, which is no better and no worse than a `.env` file. Keep that file private: do not share it or commit it to a repository.
+> **Warning:** The token in the `env` block is stored in plain text in `claude_desktop_config.json`, which is no better and no worse than a `.env` file. Keep that file private: do not share it or commit it to a repository.
 
 #### Run from a clone (contributors)
 
@@ -203,8 +196,7 @@ TODOIST_API_TOKEN=your_todoist_api_token_here
 - **`TODOIST_API_TOKEN`**: Log into [Todoist Web](https://todoist.com) ➔ Settings ➔ **Integrations** ➔ **Developer** ➔ Copy your API token.
 - **`PLUGVAN_LANG`** (optional): the language of tool results, `en` (default) or `tr` for Turkish.
 
-> [!CAUTION]
-> **🔒 Security Considerations:**
+> **Warning: 🔒 Security Considerations:**
 > - **Secret Management:** Keep `.env` private. It is pre-configured in `.gitignore` and must never be committed to Git.
 
 ---
@@ -238,8 +230,7 @@ Integrate Todoist directly into your Claude Desktop application.
 
 ---
 
-<a name="türkçe"></a>
-## 🇹🇷 Türkçe
+## Turkish
 
 Plugvan, temelde yerel çalışan bir **Model Context Protocol (MCP)** sunucusudur: Claude Desktop onu alt süreç olarak başlatır ve STDIO üzerinden konuşur; web sunucusu veya deploy gerekmez. Yapay zeka asistanının Todoist'i sohbet üzerinden yönetmesini sağlar.
 
@@ -348,8 +339,7 @@ Her ikisi de `plugvan-mcp <sürüm>` yazdırır, örneğin `plugvan-mcp 0.1.0`.
 - `TODOIST_API_TOKEN` (zorunlu) yapılandırmanın `env` bloğuna yazılır: [Todoist Web](https://todoist.com) ➔ Ayarlar ➔ **Entegrasyonlar** ➔ **Geliştirici** ➔ API belirtecinizi kopyalayın. Araç sonuçlarını Türkçe almak için aynı bloğa `"PLUGVAN_LANG": "tr"` ekleyin (varsayılan `en`).
 - Kurulan `plugvan-mcp` komutu `.env` dosyasını okumaz; `.env` dosyasını yalnızca klondaki `python -m plugvan.todoist` okur.
 
-> [!CAUTION]
-> `env` bloğundaki token, `claude_desktop_config.json` içinde düz metin olarak saklanır; bu bir `.env` dosyasından ne daha iyi ne daha kötüdür. Bu dosyayı gizli tutun: kimseyle paylaşmayın ve bir depoya eklemeyin.
+> **Uyarı:** `env` bloğundaki token, `claude_desktop_config.json` içinde düz metin olarak saklanır; bu bir `.env` dosyasından ne daha iyi ne daha kötüdür. Bu dosyayı gizli tutun: kimseyle paylaşmayın ve bir depoya eklemeyin.
 
 #### Klondan çalıştırma (geliştiriciler için)
 
@@ -389,8 +379,7 @@ TODOIST_API_TOKEN=kendi_todoist_api_tokeniniz
 - **`TODOIST_API_TOKEN`**: [Todoist Web](https://todoist.com) ➔ Ayarlar ➔ **Entegrasyonlar** ➔ **Geliştirici** ➔ API belirtecinizi kopyalayın.
 - **`PLUGVAN_LANG`** (isteğe bağlı): araç sonuçlarının dili; `en` (varsayılan) veya Türkçe için `tr`.
 
-> [!CAUTION]
-> **🔒 Güvenlik Uyarıları:**
+> **Uyarı: 🔒 Güvenlik Uyarıları:**
 > - **Gizli Anahtar Yönetimi:** `.env` dosyası `.gitignore`'da tanımlıdır; bu dosyayı asla Git deposuna eklemeyin ve kimseyle paylaşmayın.
 
 ---
@@ -424,8 +413,7 @@ Claude Desktop uygulamanıza Todoist yeteneği kazandırmak için:
 
 ---
 
-<a name="tests"></a>
-## 🧪 Testing / Testleri Çalıştırma
+## Tests
 
 Projede birim ve entegrasyon testleri yer almaktadır:
 
@@ -441,5 +429,5 @@ pytest -v
 
 ## 📄 License / Lisans
 
-This project is licensed under the [MIT License](LICENSE).  
-Bu proje [MIT Lisansı](LICENSE) kapsamında lisanslanmıştır.
+This project is licensed under the [MIT License](https://github.com/kagankurubas/plugvan/blob/main/LICENSE).\
+Bu proje [MIT Lisansı](https://github.com/kagankurubas/plugvan/blob/main/LICENSE) kapsamında lisanslanmıştır.
