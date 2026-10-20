@@ -294,3 +294,27 @@ jobs:
         env:
           VERSION: ${{ needs.release.outputs.version }}
         run: python scripts/verify_index_upload.py https://test.pypi.org/pypi plugvan-mcp "$VERSION" dist
+
+  # Uploads a final release's sdist and wheel to PyPI with trusted publishing (OIDC; no token
+  # exists). Irreversible: PyPI never accepts a file name twice, and a version can only be yanked.
+  # It runs only for a final tag (an rc goes to TestPyPI instead) and waits for the `pypi`
+  # environment's required reviewer. Like the TestPyPI job it runs no repository code; the publish
+  # action has no inputs, so it uploads to the default repository, PyPI, with skip-existing off.
+  publish-pypi:
+    name: publish (PyPI)
+    needs: release
+    if: needs.release.outputs.prerelease == 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/project/plugvan-mcp/${{ needs.release.outputs.version }}/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist
+
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2

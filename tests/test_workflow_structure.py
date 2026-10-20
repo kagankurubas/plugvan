@@ -55,7 +55,12 @@ REQUIRED_CHECKS = {
 RELEASE_GUARD = "github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')"
 PUBLISH_TESTPYPI = "publish-testpypi"
 VERIFY_TESTPYPI = "verify-testpypi"
-TAG_ONLY_JOB_NAMES = {"release", "publish (TestPyPI)", "verify (TestPyPI)"}
+PUBLISH_PYPI = "publish-pypi"
+TAG_ONLY_JOB_NAMES = {"release", "publish (TestPyPI)", "verify (TestPyPI)", "publish (PyPI)"}
+PYPI_VERSION_PAGE = "https://pypi.org/project/plugvan-mcp/${{ needs.release.outputs.version }}/"
+PUBLISH_ACTION = "pypa/gh-action-pypi-publish@"
+RC_ONLY = "needs.release.outputs.prerelease == 'true'"
+FINAL_ONLY = "needs.release.outputs.prerelease == 'false'"
 TESTPYPI_UPLOAD_URL = "https://test.pypi.org/legacy/"
 TESTPYPI_VERSION_PAGE = "https://test.pypi.org/project/plugvan-mcp/${{ needs.release.outputs.version }}/"
 PINNED_ACTION = re.compile(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}")
@@ -106,13 +111,14 @@ def test_contents_write_only_on_release():
     assert writers == ["release"]
 
 
-def test_id_token_write_only_on_publish_testpypi():
+def test_id_token_write_only_on_the_two_publish_jobs():
     blocks = {"<workflow>": _workflow().get("permissions")} | {
         job_id: job.get("permissions") for job_id, job in _jobs().items()
     }
     holders = [where for where, permissions in blocks.items() if isinstance(permissions, dict) and "id-token" in permissions]
-    assert holders == [PUBLISH_TESTPYPI], holders
-    assert _jobs()[PUBLISH_TESTPYPI]["permissions"] == {"id-token": "write"}
+    assert sorted(holders) == sorted([PUBLISH_TESTPYPI, PUBLISH_PYPI]), holders
+    for job_id in (PUBLISH_TESTPYPI, PUBLISH_PYPI):
+        assert _jobs()[job_id]["permissions"] == {"id-token": "write"}, job_id
 
 
 def test_every_action_is_pinned_to_a_full_commit_sha():
@@ -208,6 +214,47 @@ def test_publish_testpypi_only_downloads_dist_and_publishes_to_testpypi():
     assert publish["uses"].startswith("pypa/gh-action-pypi-publish@")
     # Only the TestPyPI upload URL: no user, password or token input, and skip-existing left off.
     assert publish["with"] == {"repository-url": TESTPYPI_UPLOAD_URL}
+
+
+def test_publish_pypi_runs_after_release_for_final_tags_in_the_pypi_environment():
+    job = _jobs()[PUBLISH_PYPI]
+    assert job["needs"] in ("release", ["release"])
+    assert job["if"] == FINAL_ONLY
+    assert job["environment"] == {"name": "pypi", "url": PYPI_VERSION_PAGE}
+    assert 0 < job["timeout-minutes"] <= 10
+
+
+def test_publish_pypi_only_downloads_dist_and_publishes_to_the_default_index():
+    jobs = _jobs()
+    steps = jobs[PUBLISH_PYPI]["steps"]
+    assert [step.get("run") for step in steps] == [None, None], "no run: steps (and so no checkout script)"
+    download, publish = steps
+    assert download["uses"].startswith("actions/download-artifact@")
+    assert download["with"] == {"name": "dist", "path": "dist"}
+    # The same pinned action as the TestPyPI job, with no inputs at all: the default repository (PyPI),
+    # no user, password or token, skip-existing left off.
+    assert publish["uses"] == jobs[PUBLISH_TESTPYPI]["steps"][1]["uses"]
+    assert publish["uses"].startswith(PUBLISH_ACTION)
+    assert "with" not in publish
+
+
+def test_an_rc_reaches_only_testpypi_and_a_final_only_pypi():
+    """Mutual exclusion: for each value of release's `prerelease` output exactly one job publishes, to the
+    index that value belongs to. Every job that runs the publish action is one of the two publish jobs."""
+    jobs = _jobs()
+    publishers = sorted(job_id for job_id, job in jobs.items() if any(
+        step.get("uses", "").startswith(PUBLISH_ACTION) for step in job.get("steps", [])))
+    assert publishers == sorted([PUBLISH_TESTPYPI, PUBLISH_PYPI])
+
+    def target(job_id: str) -> str:
+        step = next(s for s in jobs[job_id]["steps"] if s.get("uses", "").startswith(PUBLISH_ACTION))
+        return (step.get("with") or {}).get("repository-url", "PyPI (default)")
+
+    routes = {condition: [job_id for job_id in publishers if jobs[job_id].get("if") == condition]
+              for condition in (RC_ONLY, FINAL_ONLY)}
+    assert routes == {RC_ONLY: [PUBLISH_TESTPYPI], FINAL_ONLY: [PUBLISH_PYPI]}, routes
+    assert (target(PUBLISH_TESTPYPI), target(PUBLISH_PYPI)) == (TESTPYPI_UPLOAD_URL, "PyPI (default)")
+    assert (jobs[PUBLISH_TESTPYPI]["environment"]["name"], jobs[PUBLISH_PYPI]["environment"]["name"]) == ("testpypi", "pypi")
 
 
 def test_verify_testpypi_runs_after_the_upload_without_id_token():
