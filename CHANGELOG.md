@@ -4,17 +4,43 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Added
-- PyPI publishing for final releases (#78): a `vX.Y.Z` tag uploads the
-  sdist and wheel that CI built and tested to PyPI with trusted
-  publishing (no API token or secret), after the `pypi` environment's
-  reviewer approves, then checks that PyPI serves exactly those files,
-  with the same names and sha256 digests. Release candidates still go
-  only to TestPyPI.
-
 ### Backlog
 - `update_section`: expose `order` and `collapsed` (supported by the SDK).
 - `project_move`: needs the Sync API's separate command.
+
+## [0.1.1] - 2026-10-20
+
+The first release published to PyPI: `plugvan-mcp` 0.1.1 installs from
+PyPI as well as from the GitHub Release assets. It contains the changes
+tested in 0.1.1rc1.
+
+### Added
+- Final releases are published to PyPI with trusted publishing (#78): a
+  `vX.Y.Z` tag uploads the sdist and wheel that CI built and tested, with
+  no API token or secret, after the maintainer approves the `pypi`
+  deployment, then checks that PyPI serves exactly those files, with the
+  same names and sha256 digests.
+- Release candidates are published the same way to TestPyPI only (#77),
+  to rehearse a release before it reaches PyPI.
+- Release checks ahead of publishing (#76): the release checks that both
+  archive file names carry exactly the tag's version, and every PR runs
+  `twine check --strict`, so the README must render as the PyPI project
+  description.
+
+### Changed
+- Release versions must be canonical, `X.Y.Z` or `X.Y.ZrcN` (#76); other
+  spellings, and `a`, `b`, `dev`, `post` and local versions, are
+  rejected before anything is published. Only an `X.Y.ZrcN` version is a
+  prerelease.
+- The README reads the same on GitHub and on PyPI, where it is the
+  project description: the architecture diagram is plain text, warnings
+  are plain quotes, the LICENSE links are absolute, and the navigation
+  links point at headings.
+
+### Fixed
+- README: the install step finds `uvx` with `where.exe uvx`, which also
+  works in PowerShell (there, plain `where` is an alias of `Where-Object`
+  and prints nothing).
 
 ## [0.1.1rc1] - 2026-10-20
 
