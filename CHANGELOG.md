@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- TestPyPI publishing for release candidates (#77): an `X.Y.ZrcN` tag
+  uploads the sdist and wheel that CI built and tested to TestPyPI with
+  trusted publishing (no API token or secret), then checks that TestPyPI
+  serves exactly those files, with the same names and sha256 digests.
+  Only the upload job gets `id-token: write`. Final versions are not
+  uploaded to any index yet.
 - Release checks ahead of PyPI publishing (#76): the release job checks
   that both archive file names carry exactly the tag's version, and the
   `package (ubuntu-24.04, Python 3.10)` job runs `twine check --strict`
