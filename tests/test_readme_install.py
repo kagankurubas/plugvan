@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 README = Path(__file__).resolve().parents[1] / "README.md"
-SECTIONS = ("## 🇬🇧 English", "## 🇹🇷 Türkçe")
+SECTIONS = ("## English", "## Turkish")
 WHEEL_URL = "https://github.com/kagankurubas/plugvan/releases/download/v0.1.0/plugvan_mcp-0.1.0-py3-none-any.whl"
 CHECKOUT_ARGS = ["-m", "plugvan.todoist"]
 

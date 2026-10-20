@@ -101,7 +101,7 @@ Section placement: a section's body runs to the next `## ` heading (`###` subsec
 
 ## Language
 
-All commit messages, PR titles and bodies, issue titles and bodies, review comments, CHANGELOG entries and in-repo documentation are written in English, regardless of the language used in chat with the maintainer. The only exception is the Turkish section of README.md (`## 🇹🇷 Türkçe`), the Turkish translation of its English section, which is maintained as a user-facing second language.
+All commit messages, PR titles and bodies, issue titles and bodies, review comments, CHANGELOG entries and in-repo documentation are written in English, regardless of the language used in chat with the maintainer. The only exception is the Turkish section of README.md (`## Turkish`), the Turkish translation of its English section, which is maintained as a user-facing second language.
 
 ## Agent skills
 

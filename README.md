@@ -19,15 +19,14 @@
 
 <p align="center">
   <a href="#english">English</a> •
-  <a href="#türkçe">Türkçe</a> •
+  <a href="#turkish">Türkçe</a> •
   <a href="#architecture">Architecture</a> •
   <a href="#tests">Tests</a>
 </p>
 
 ---
 
-<a name="architecture"></a>
-## 🏗️ Architecture & Data Flow / Mimari Akış
+## Architecture
 
 ```text
 Input source:          Claude Desktop (MCP client via STDIO)
@@ -45,8 +44,7 @@ Todoist:               Todoist REST API v1
 
 ---
 
-<a name="english"></a>
-## 🇬🇧 English
+## English
 
 Plugvan is primarily a local **Model Context Protocol (MCP)** server: Claude Desktop launches it as a subprocess and talks to it over STDIO, so no web server or deployment is needed. It lets an AI assistant manage Todoist through conversation using smart project resolution, natural language due dates, and strict schema validation.
 
@@ -232,8 +230,7 @@ Integrate Todoist directly into your Claude Desktop application.
 
 ---
 
-<a name="türkçe"></a>
-## 🇹🇷 Türkçe
+## Turkish
 
 Plugvan, temelde yerel çalışan bir **Model Context Protocol (MCP)** sunucusudur: Claude Desktop onu alt süreç olarak başlatır ve STDIO üzerinden konuşur; web sunucusu veya deploy gerekmez. Yapay zeka asistanının Todoist'i sohbet üzerinden yönetmesini sağlar.
 
@@ -416,8 +413,7 @@ Claude Desktop uygulamanıza Todoist yeteneği kazandırmak için:
 
 ---
 
-<a name="tests"></a>
-## 🧪 Testing / Testleri Çalıştırma
+## Tests
 
 Projede birim ve entegrasyon testleri yer almaktadır:
 
