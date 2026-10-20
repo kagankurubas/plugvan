@@ -173,6 +173,7 @@ jobs:
     # The release rules' `prerelease` decides the package index: an rc goes to TestPyPI.
     outputs:
       prerelease: ${{ steps.rules.outputs.prerelease }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       # Full history, so origin/main is available for the reachability check below.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -202,6 +203,14 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: python scripts/release_rules.py "$TAG" pyproject.toml CHANGELOG.md "$RUNNER_TEMP/release-notes.md" >> "$GITHUB_OUTPUT"
+
+      # The tag without its "v", which the step above proved is the pyproject.toml version; used
+      # for the TestPyPI environment URL. No `if:`, so it runs only after the release rules passed.
+      - name: Expose the version
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -241,7 +250,9 @@ jobs:
     if: needs.release.outputs.prerelease == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    environment: testpypi
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/plugvan-mcp/${{ needs.release.outputs.version }}/
     permissions:
       id-token: write
     steps:

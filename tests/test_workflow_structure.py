@@ -18,9 +18,12 @@ only what the workflow has today; nothing here describes a job that does not exi
 - the release job's "Check archive contents" step passes `--expected-version "${TAG#v}"`, with
   `TAG` set from `${{ github.ref_name }}` in the step's `env`, and its `run:` text holds no
   `${{ }}` expression, so the tag name never becomes part of the shell script;
-- `release` exposes the release rules' `prerelease` step output as a job output;
-- `publish-testpypi` needs `release`, runs only when that output is `'true'`, uses the `testpypi`
-  environment, has a short timeout, and its only steps are downloading the `dist` artifact and the
+- `release` exposes the release rules' `prerelease` step output and a `version` output; the step
+  that writes `version` (the tag without its `v`, `TAG` from `env`, no `${{ }}` in `run:`) comes
+  right after the release rules step, with no `if:`, so it runs only when the rules passed;
+- `publish-testpypi` needs `release`, runs only when `prerelease` is `'true'`, uses the `testpypi`
+  environment with the version's TestPyPI page as its URL, has a short timeout, and its only
+  steps are downloading the `dist` artifact and the
   publish action with the TestPyPI upload URL as its only input: no `run:` step, no user,
   password or token, no `skip-existing`.
 """
@@ -48,6 +51,7 @@ RELEASE_GUARD = "github.event_name == 'push' && startsWith(github.ref, 'refs/tag
 PUBLISH_TESTPYPI = "publish-testpypi"
 TAG_ONLY_JOB_NAMES = {"release", "publish (TestPyPI)"}
 TESTPYPI_UPLOAD_URL = "https://test.pypi.org/legacy/"
+TESTPYPI_VERSION_PAGE = "https://test.pypi.org/project/plugvan-mcp/${{ needs.release.outputs.version }}/"
 PINNED_ACTION = re.compile(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}")
 
 
@@ -162,20 +166,30 @@ def test_release_archive_check_run_has_no_expression():
     assert "${{" not in _release_archive_check()["run"]
 
 
-def test_release_exposes_the_prerelease_output_of_the_release_rules():
-    assert _jobs()["release"]["outputs"] == {"prerelease": "${{ steps.rules.outputs.prerelease }}"}
+def test_release_exposes_the_prerelease_and_version_outputs():
+    assert _jobs()["release"]["outputs"] == {
+        "prerelease": "${{ steps.rules.outputs.prerelease }}",
+        "version": "${{ steps.version.outputs.version }}",
+    }
 
 
-def _environment_name(job: dict) -> str | None:
-    environment = job.get("environment")
-    return environment.get("name") if isinstance(environment, dict) else environment
+def test_release_version_step_directly_follows_the_release_rules():
+    steps = _jobs()["release"]["steps"]
+    ids = [step.get("id") for step in steps]
+    assert ids.count("rules") == 1 and ids.count("version") == 1
+    assert ids.index("version") == ids.index("rules") + 1
+    step = steps[ids.index("version")]
+    assert "if" not in step  # runs only when every earlier step, the release rules included, passed
+    assert step.get("env") == {"TAG": "${{ github.ref_name }}"}
+    assert step["run"] == 'echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"'
+    assert "${{" not in step["run"]
 
 
 def test_publish_testpypi_runs_after_release_for_rc_tags_in_the_testpypi_environment():
     job = _jobs()[PUBLISH_TESTPYPI]
     assert job["needs"] in ("release", ["release"])
     assert job["if"] == "needs.release.outputs.prerelease == 'true'"
-    assert _environment_name(job) == "testpypi"
+    assert job["environment"] == {"name": "testpypi", "url": TESTPYPI_VERSION_PAGE}
     assert 0 < job["timeout-minutes"] <= 10
 
 
