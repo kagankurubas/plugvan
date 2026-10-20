@@ -4,6 +4,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- PyPI publishing for final releases (#78): a `vX.Y.Z` tag uploads the
+  sdist and wheel that CI built and tested to PyPI with trusted
+  publishing (no API token or secret), after the `pypi` environment's
+  reviewer approves, then checks that PyPI serves exactly those files,
+  with the same names and sha256 digests. Release candidates still go
+  only to TestPyPI.
+
 ### Backlog
 - `update_section`: expose `order` and `collapsed` (supported by the SDK).
 - `project_move`: needs the Sync API's separate command.
