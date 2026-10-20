@@ -198,10 +198,13 @@ jobs:
           name: dist
           path: dist
 
-      # Exactly one sdist and one wheel, still within the allowlist; prints their sha256 for
-      # comparison with the package jobs' logs.
+      # Exactly one sdist and one wheel, still within the allowlist, and both file names carry
+      # exactly the tag's version (the release rules above already proved the tag is "v" + the
+      # pyproject.toml version); prints their sha256 for comparison with the package jobs' logs.
       - name: Check archive contents
-        run: python scripts/check_dist_contents.py dist
+        env:
+          TAG: ${{ github.ref_name }}
+        run: python scripts/check_dist_contents.py dist --expected-version "${TAG#v}"
 
       # The notes are the CHANGELOG section only (no --generate-notes); --verify-tag refuses to
       # create a tag that does not already exist on the remote.
