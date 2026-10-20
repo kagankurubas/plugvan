@@ -10,7 +10,7 @@ from importlib import metadata
 
 DISTRIBUTION = "plugvan-mcp"
 RUNTIME_REQUIREMENTS = {"mcp", "todoist-api-python", "pydantic", "python-dotenv"}
-TEST_EXTRA_REQUIREMENTS = {"pytest", "httpx"}
+TEST_EXTRA_REQUIREMENTS = {"pytest", "httpx", "pyyaml"}
 
 
 def _name(requirement: str) -> str:

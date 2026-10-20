@@ -3,8 +3,9 @@ Tests for scripts/release_rules.py, the rules the CI `release` job applies to a 
 before it creates a GitHub Release. Hermetic: pyproject.toml and CHANGELOG.md are small fakes
 written to tmp_path.
 
-The rules: the tag is exactly "v" + the pyproject.toml version (no normalization), a tag
-containing `rc` is a prerelease, and the release notes are that version's
+The rules: the pyproject.toml version is canonical (`X.Y.Z` or `X.Y.ZrcN`), the tag is exactly
+"v" + that version (no normalization), an `X.Y.ZrcN` version is a prerelease, and the release
+notes are that version's
 `## [<version>] - <date>` CHANGELOG section, which must exist and must not be empty.
 """
 
@@ -74,6 +75,51 @@ def test_tag_not_exactly_v_plus_version_fails(tag, version):
 
 @pytest.mark.parametrize("tag, prerelease", [("v0.1.0rc1", True), ("v0.1.0", False)])
 def test_prerelease_detection(tag, prerelease):
+    assert _load_script().is_prerelease(tag) is prerelease
+
+
+# The only version forms a release may use: X.Y.Z and X.Y.ZrcN, non-negative integers without
+# leading zeros. In these forms the tag, the pyproject.toml string, the archive names and PyPI's
+# normalized version are the same string.
+CANONICAL_VERSIONS = ["0.1.1", "0.1.1rc1", "10.0.0rc12", "0.0.0"]
+NON_CANONICAL_VERSIONS = [
+    "0.1.1-rc1",  # normalizes to 0.1.1rc1
+    "0.1.1.rc1",  # normalizes to 0.1.1rc1
+    "0.1.1RC1",  # normalizes to 0.1.1rc1; an `rc` substring test would call it a final release
+    "0.1.01",  # leading zero; normalizes to 0.1.1
+    "0.1",  # two components
+    "0.1.1a1",  # alpha
+    "0.1.1b1",  # beta
+    "0.1.1.dev0",  # dev release
+    "0.1.1.post1",  # post release
+    "0.1.1+local",  # local version
+    "v0.1.1",  # a tag, not a version
+]
+
+
+@pytest.mark.parametrize("version", CANONICAL_VERSIONS)
+def test_canonical_version_accepted(version):
+    assert _load_script().is_canonical_version(version)
+
+
+@pytest.mark.parametrize("version", NON_CANONICAL_VERSIONS)
+def test_non_canonical_version_rejected(version):
+    assert not _load_script().is_canonical_version(version)
+
+
+@pytest.mark.parametrize(
+    "tag, prerelease",
+    [
+        ("v0.1.1rc1", True),
+        ("v10.0.0rc12", True),
+        ("v0.1.1", False),
+        ("v0.0.0", False),
+        ("v0.1.1RC1", False),  # not the rcN form
+        ("v0.1.1-rc1", False),
+        ("v0.1.1.rc1", False),
+    ],
+)
+def test_prerelease_is_exactly_the_rcn_form(tag, prerelease):
     assert _load_script().is_prerelease(tag) is prerelease
 
 
@@ -173,6 +219,39 @@ def test_main_fails_without_writing_anything(tmp_path, capsys, tag, version, cha
     assert captured.out == ""
     assert error in captured.err
     assert not notes.exists()
+
+
+def _changelog_for(version: str) -> str:
+    return f"# Changelog\n\n## [Unreleased]\n\n## [{version}] - 2026-10-20\n\n- Release {version}.\n"
+
+
+@needs_tomllib
+@pytest.mark.parametrize("version", NON_CANONICAL_VERSIONS)
+def test_main_rejects_a_non_canonical_version(tmp_path, capsys, version):
+    # The tag is exactly "v" + version and the CHANGELOG section exists, so only the version rule can fail.
+    script = _load_script()
+    pyproject, changelog_path = _project(tmp_path, version, _changelog_for(version))
+    notes = tmp_path / "notes.md"
+    assert script.main([f"v{version}", str(pyproject), str(changelog_path), str(notes)]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "not canonical" in captured.err
+    assert repr(version) in captured.err
+    assert not notes.exists()
+
+
+@needs_tomllib
+@pytest.mark.parametrize(
+    "version, prerelease",
+    [("0.1.1", "false"), ("0.1.1rc1", "true"), ("10.0.0rc12", "true"), ("0.0.0", "false")],
+)
+def test_main_accepts_a_canonical_version(tmp_path, capsys, version, prerelease):
+    script = _load_script()
+    pyproject, changelog_path = _project(tmp_path, version, _changelog_for(version))
+    notes = tmp_path / "notes.md"
+    assert script.main([f"v{version}", str(pyproject), str(changelog_path), str(notes)]) == 0
+    assert capsys.readouterr().out == f"prerelease={prerelease}\n"
+    assert notes.read_text(encoding="utf-8") == f"- Release {version}.\n"
 
 
 def test_main_usage_error():

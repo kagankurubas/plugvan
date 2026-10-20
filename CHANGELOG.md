@@ -4,7 +4,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- Release checks ahead of PyPI publishing (#76): the release job checks
+  that both archive file names carry exactly the tag's version, and the
+  `package (ubuntu-24.04, Python 3.10)` job runs `twine check --strict`
+  on every PR, so the README must render as the PyPI long description.
+- A workflow structure test pins the CI permissions, full-SHA action
+  pins, the required check names, the release job's `needs` and tag
+  guard, the per-ref concurrency group, the `dist` artifact retention,
+  and how the release job passes the tag's version to the archive check
+  (through `env`, never as an expression inside the shell script).
+
 ### Changed
+- Release versions must be canonical, `X.Y.Z` or `X.Y.ZrcN` (#76).
+  Other spellings (such as `0.1.1-rc1` or `0.1.1RC1`) and `a`, `b`,
+  `dev`, `post` and local versions fail the release job before anything
+  is created. Only an `X.Y.ZrcN` version is published as a prerelease.
 - README renders the same on GitHub and PyPI.
 
 ### Fixed

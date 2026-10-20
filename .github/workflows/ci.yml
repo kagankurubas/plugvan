@@ -111,6 +111,13 @@ jobs:
       - name: Check archive contents
         run: python scripts/check_dist_contents.py dist
 
+      # The metadata check PyPI applies on upload, run on every PR: --strict turns warnings into
+      # failures, and the README (the long description) must render. Runs before the upload.
+      - name: Check package metadata (twine)
+        run: |
+          python -m pip install twine==7.0.0
+          python -m twine check --strict dist/*
+
       # Installs the checked wheel into a throwaway venv outside the checkout, proves with
       # `python -I` that plugvan is imported from that venv's site-packages, and runs only the
       # installed-mode tests (STDIO seam against the installed server, .env rules) with
@@ -184,9 +191,9 @@ jobs:
         with:
           python-version: "3.14"
 
-      # Fails before anything is created if the tag is not exactly "v" + the pyproject.toml
-      # version, or if that version's CHANGELOG section is missing or empty. Its only stdout
-      # line is `prerelease=true|false`.
+      # Fails before anything is created if the pyproject.toml version is not canonical
+      # (X.Y.Z or X.Y.ZrcN), if the tag is not exactly "v" + that version, or if that version's
+      # CHANGELOG section is missing or empty. Its only stdout line is `prerelease=true|false`.
       - name: Check the tag and extract the release notes
         id: rules
         env:
@@ -198,10 +205,13 @@ jobs:
           name: dist
           path: dist
 
-      # Exactly one sdist and one wheel, still within the allowlist; prints their sha256 for
-      # comparison with the package jobs' logs.
+      # Exactly one sdist and one wheel, still within the allowlist, and both file names carry
+      # exactly the tag's version (the release rules above already proved the tag is "v" + the
+      # pyproject.toml version); prints their sha256 for comparison with the package jobs' logs.
       - name: Check archive contents
-        run: python scripts/check_dist_contents.py dist
+        env:
+          TAG: ${{ github.ref_name }}
+        run: python scripts/check_dist_contents.py dist --expected-version "${TAG#v}"
 
       # The notes are the CHANGELOG section only (no --generate-notes); --verify-tag refuses to
       # create a tag that does not already exist on the remote.

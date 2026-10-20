@@ -1,12 +1,15 @@
 """Checks the built sdist and wheel before they are uploaded or released.
 
-Usage: python scripts/check_dist_contents.py <dist directory>
+Usage: python scripts/check_dist_contents.py <dist directory> [--expected-version <version>]
 
 The directory must hold exactly one sdist (*.tar.gz) and one wheel (*.whl). Two layers, and a
 violation of either fails the check (exit 1):
 - allowlist: every archive member must be expected for that archive type;
 - ban list: nothing may look like a secret, local data, test or repository file, even inside
   an allowlisted directory such as `plugvan/`.
+With --expected-version (the release job passes the tag without its "v"), the version in both
+file names must equal it exactly. The version is read from the name layout: the sdist is
+`<name>-<version>.tar.gz`, the wheel `<name>-<version>[-<build>]-<python>-<abi>-<platform>.whl`.
 Each checked archive is printed with its sha256 and its member list, so the CI log identifies
 the exact files that were checked and uploaded.
 """
@@ -88,9 +91,29 @@ def check_archive(path: Path) -> list[str]:
     return [f"{path.name}: {error}" for error in errors]
 
 
+def file_name_version(path: Path) -> str:
+    """The version field of an sdist or wheel file name, or '' if the name lacks that layout."""
+    if path.name.endswith(".tar.gz"):
+        return path.name[: -len(".tar.gz")].partition("-")[2]
+    fields = path.name[: -len(".whl")].split("-")
+    return fields[1] if len(fields) in (5, 6) else ""
+
+
+def version_errors(paths: list[Path], expected: str) -> list[str]:
+    return [
+        f"{path.name}: version in the file name is {file_name_version(path)!r}, expected {expected!r}"
+        for path in paths
+        if file_name_version(path) != expected
+    ]
+
+
 def main(argv: list[str]) -> int:
-    if len(argv) != 1:
-        print("usage: check_dist_contents.py <dist directory>", file=sys.stderr)
+    if len(argv) == 1:
+        expected = None
+    elif len(argv) == 3 and argv[1] == "--expected-version" and argv[2]:
+        expected = argv[2]
+    else:
+        print("usage: check_dist_contents.py <dist directory> [--expected-version <version>]", file=sys.stderr)
         return 2
     directory = Path(argv[0])
     sdists = sorted(directory.glob("*.tar.gz"))
@@ -101,10 +124,14 @@ def main(argv: list[str]) -> int:
         return 1
 
     violations = check_archive(sdists[0]) + check_archive(wheels[0])
+    if expected is not None:
+        violations += version_errors([sdists[0], wheels[0]], expected)
     for violation in violations:
         print(violation, file=sys.stderr)
     if violations:
         return 1
+    if expected is not None:
+        print(f"version {expected} in both file names")
     print("archive contents OK")
     return 0
 

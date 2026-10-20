@@ -42,9 +42,9 @@ def _load_script():
     return module
 
 
-def _sdist(directory: Path, members: list[str], root: str | None = SDIST_ROOT) -> Path:
-    """A fake sdist; with root=None the member names are used as given (full paths)."""
-    path = directory / f"{SDIST_ROOT}.tar.gz"
+def _sdist(directory: Path, members: list[str], root: str | None = SDIST_ROOT, name: str = SDIST_ROOT) -> Path:
+    """A fake sdist `<name>.tar.gz`; with root=None the member names are used as given (full paths)."""
+    path = directory / f"{name}.tar.gz"
     with tarfile.open(path, "w:gz") as archive:
         for member in members:
             info = tarfile.TarInfo(f"{root}/{member}" if root else member)
@@ -53,8 +53,8 @@ def _sdist(directory: Path, members: list[str], root: str | None = SDIST_ROOT) -
     return path
 
 
-def _wheel(directory: Path, members: list[str]) -> Path:
-    path = directory / "plugvan_mcp-0.1.0-py3-none-any.whl"
+def _wheel(directory: Path, members: list[str], name: str = "plugvan_mcp-0.1.0-py3-none-any.whl") -> Path:
+    path = directory / name
     with zipfile.ZipFile(path, "w") as archive:
         for member in members:
             archive.writestr(member, "x")
@@ -128,3 +128,79 @@ def test_exactly_one_sdist_and_one_wheel_are_required(tmp_path, capsys, files):
         _wheel(tmp_path, CLEAN_WHEEL)
     assert script.main([str(tmp_path)]) == 1
     assert "exactly one" in capsys.readouterr().err
+
+
+# The release job passes the tag's version (without the "v"): both file names must carry exactly
+# that version, read from the name layout, not found as a substring.
+def _named_dist(tmp_path: Path, sdist_name: str, wheel_name: str) -> Path:
+    _sdist(tmp_path, CLEAN_SDIST, root=sdist_name, name=sdist_name)
+    _wheel(tmp_path, CLEAN_WHEEL, name=wheel_name)
+    return tmp_path
+
+
+@pytest.mark.parametrize(
+    "sdist_name, wheel_name, version",
+    [
+        ("plugvan_mcp-0.1.0", "plugvan_mcp-0.1.0-py3-none-any.whl", "0.1.0"),
+        ("plugvan_mcp-0.1.1rc1", "plugvan_mcp-0.1.1rc1-py3-none-any.whl", "0.1.1rc1"),
+        ("plugvan_mcp-10.0.0rc12", "plugvan_mcp-10.0.0rc12-1-py3-none-any.whl", "10.0.0rc12"),  # build tag
+    ],
+)
+def test_expected_version_in_both_file_names_passes(tmp_path, capsys, sdist_name, wheel_name, version):
+    script = _load_script()
+    assert script.main([str(_named_dist(tmp_path, sdist_name, wheel_name)), "--expected-version", version]) == 0
+    assert f"version {version} in both file names" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "sdist_name, wheel_name, version, wrong",
+    [
+        ("plugvan_mcp-0.1.0", "plugvan_mcp-0.1.0-py3-none-any.whl", "0.1.1", ["sdist", "wheel"]),
+        ("plugvan_mcp-0.1.0", "plugvan_mcp-0.1.1-py3-none-any.whl", "0.1.1", ["sdist"]),
+        ("plugvan_mcp-0.1.1", "plugvan_mcp-0.1.0-py3-none-any.whl", "0.1.1", ["wheel"]),
+        # a version that merely contains the expected one
+        ("plugvan_mcp-0.1.10", "plugvan_mcp-0.1.1-py3-none-any.whl", "0.1.1", ["sdist"]),
+        ("plugvan_mcp-0.1.1", "plugvan_mcp-0.1.1rc1-py3-none-any.whl", "0.1.1", ["wheel"]),
+        # non-normalized names
+        ("plugvan_mcp-0.1.1-rc1", "plugvan_mcp-0.1.1rc1-py3-none-any.whl", "0.1.1rc1", ["sdist"]),
+        ("plugvan_mcp-0.1.1rc1", "plugvan_mcp-0.1.1.rc1-py3-none-any.whl", "0.1.1rc1", ["wheel"]),
+        ("plugvan_mcp-0.1.1RC1", "plugvan_mcp-0.1.1RC1-py3-none-any.whl", "0.1.1rc1", ["sdist", "wheel"]),
+    ],
+)
+def test_other_version_in_a_file_name_fails_and_is_named(tmp_path, capsys, sdist_name, wheel_name, version, wrong):
+    script = _load_script()
+    assert script.main([str(_named_dist(tmp_path, sdist_name, wheel_name)), "--expected-version", version]) == 1
+    err = capsys.readouterr().err
+    names = {"sdist": f"{sdist_name}.tar.gz", "wheel": wheel_name}
+    for kind in ("sdist", "wheel"):
+        assert (f"{names[kind]}: version in the file name" in err) is (kind in wrong), kind
+    assert f"expected '{version}'" in err
+
+
+@pytest.mark.parametrize(
+    "sdist_name, wheel_name",
+    [("plugvan_mcp", "plugvan_mcp-0.1.0-py3-none-any.whl"), ("plugvan_mcp-0.1.0", "plugvan_mcp.whl")],
+    ids=["sdist-without-version", "wheel-without-tags"],
+)
+def test_file_name_without_the_version_layout_fails_cleanly(tmp_path, capsys, sdist_name, wheel_name):
+    script = _load_script()
+    assert script.main([str(_named_dist(tmp_path, sdist_name, wheel_name)), "--expected-version", "0.1.0"]) == 1
+    assert "version in the file name is ''" in capsys.readouterr().err
+
+
+def test_without_an_expected_version_file_name_versions_are_not_compared(tmp_path, capsys):
+    script = _load_script()
+    assert script.main([str(_named_dist(tmp_path, "plugvan_mcp-0.1.0", "plugvan_mcp-0.2.0-py3-none-any.whl"))]) == 0
+    assert "file names" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "extra", [["--expected-version"], ["0.1.0"], ["--expected-version", ""], ["--version", "0.1.0"]],
+    ids=["missing-value", "positional", "empty-value", "unknown-option"],
+)
+def test_bad_arguments_are_a_usage_error(tmp_path, capsys, extra):
+    script = _load_script()
+    assert script.main([str(_dist(tmp_path)), *extra]) == 2
+    captured = capsys.readouterr()
+    assert "usage:" in captured.err
+    assert captured.out == ""
