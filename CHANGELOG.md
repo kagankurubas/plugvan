@@ -5,7 +5,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
-- TestPyPI publishing for release candidates (#77): an `X.Y.ZrcN` tag
+- TestPyPI publishing for release candidates (#77): a `vX.Y.ZrcN` tag
   uploads the sdist and wheel that CI built and tested to TestPyPI with
   trusted publishing (no API token or secret), then checks that TestPyPI
   serves exactly those files, with the same names and sha256 digests.

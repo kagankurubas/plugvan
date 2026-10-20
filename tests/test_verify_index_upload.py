@@ -10,6 +10,7 @@ at once.
 """
 
 import hashlib
+import http.client
 import importlib.util
 import io
 import json
@@ -208,17 +209,28 @@ def _http_error(code):
     return urllib.error.HTTPError("https://example.invalid", code, "status", {}, io.BytesIO(b""))
 
 
+class _BrokenResponse(_Response):
+    """A response whose body ends early, as when the connection drops mid-read."""
+
+    def read(self, *args):
+        raise http.client.IncompleteRead(b"partial", 100)
+
+
 @pytest.mark.parametrize(
     "outcome, expected",
     [
         (_http_error(404), "NotVisible"),
         (_http_error(503), "NotVisible"),
+        (_http_error(429), "NotVisible"),
+        (_http_error(408), "NotVisible"),
         (urllib.error.URLError("connection refused"), "NotVisible"),
         (TimeoutError("timed out"), "NotVisible"),
+        (http.client.RemoteDisconnected("closed"), "NotVisible"),
+        (_BrokenResponse(b""), "NotVisible"),
         (_http_error(403), "UnreadableResponse"),
         (_Response(b"<html>not json</html>"), "UnreadableResponse"),
     ],
-    ids=["404", "503", "url-error", "timeout", "403", "not-json"],
+    ids=["404", "503", "429", "408", "url-error", "timeout", "remote-disconnected", "incomplete-read", "403", "not-json"],
 )
 def test_fetch_json_classifies_failures(monkeypatch, outcome, expected):
     script = _load_script()
@@ -232,6 +244,27 @@ def test_fetch_json_classifies_failures(monkeypatch, outcome, expected):
     monkeypatch.setattr(script.urllib.request, "urlopen", fake_urlopen)
     with pytest.raises(getattr(script, expected)):
         script.fetch_json("https://test.pypi.org/pypi/plugvan-mcp/0.1.1rc1/json")
+
+
+def test_a_body_that_keeps_breaking_off_is_retried_then_fails_cleanly(tmp_path, monkeypatch, capsys):
+    # main() with the real fetch_json: no traceback escapes, the bounded retry runs, the reason is printed.
+    script = _load_script()
+    dist, _ = _dist(tmp_path)
+    requests = []
+
+    def fake_urlopen(request, timeout):
+        requests.append(request.full_url)
+        if len(requests) > script.ATTEMPTS:
+            raise AssertionError("fetched more often than the retry limit allows")
+        return _BrokenResponse(b"")
+
+    monkeypatch.setattr(script.urllib.request, "urlopen", fake_urlopen)
+    sleep = FakeSleep(script.ATTEMPTS - 1)
+    assert script.main([BASE, "plugvan-mcp", VERSION, str(dist)], sleep=sleep) == 1
+    assert len(requests) == script.ATTEMPTS
+    assert sleep.calls == [script.DELAY_SECONDS] * (script.ATTEMPTS - 1)
+    err = capsys.readouterr().err
+    assert f"gave up after {script.ATTEMPTS} attempts" in err and "IncompleteRead" in err
 
 
 def test_fetch_json_returns_the_decoded_body(monkeypatch):

@@ -8,13 +8,16 @@ Reads `<base>/<project>/<version>/json` and compares the files it lists (`urls[]
 sets of file names are equal and every sha256 matches; exit 1 otherwise, with each problem on
 stderr; exit 2 on a usage error.
 
-Index propagation is not instant, so a version that is not visible yet (HTTP 404 or 5xx, a network
-error or timeout) or that lists only some of the local files is retried: at most ATTEMPTS requests,
-DELAY_SECONDS apart, within WORST_CASE_SECONDS in total. A file on the index that is not in dist,
-a digest mismatch or an unreadable response fails at once; it never fixes itself.
+Index propagation is not instant, so a version that is not visible yet or a transient failure (HTTP
+404, 408, 429 or 5xx, a network error or timeout, a response body that breaks off) or a listing with
+only some of the local files is retried: at most ATTEMPTS requests, DELAY_SECONDS apart, within
+WORST_CASE_SECONDS in total. A file on the index that is not in dist, a digest mismatch or an
+unreadable response (any other HTTP status, or a body that is not the expected JSON listing) fails
+at once; it never fixes itself.
 """
 
 import hashlib
+import http.client
 import json
 import sys
 import time
@@ -25,6 +28,7 @@ from pathlib import Path
 ATTEMPTS = 10
 DELAY_SECONDS = 15
 REQUEST_TIMEOUT_SECONDS = 10
+RETRYABLE_HTTP_CODES = {404, 408, 429}  # not there yet, request timeout, rate limited (and every 5xx)
 WORST_CASE_SECONDS = ATTEMPTS * REQUEST_TIMEOUT_SECONDS + (ATTEMPTS - 1) * DELAY_SECONDS
 
 
@@ -66,10 +70,11 @@ def fetch_json(url: str) -> object:
         with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
             body = response.read()
     except urllib.error.HTTPError as error:
-        if error.code == 404 or error.code >= 500:
+        if error.code in RETRYABLE_HTTP_CODES or error.code >= 500:
             raise NotVisible(f"HTTP {error.code}") from error
         raise UnreadableResponse(f"HTTP {error.code}") from error
-    except (urllib.error.URLError, OSError) as error:  # TimeoutError is an OSError
+    # TimeoutError is an OSError; http.client.HTTPException covers a body that breaks off (IncompleteRead).
+    except (urllib.error.URLError, OSError, http.client.HTTPException) as error:
         raise NotVisible(f"{type(error).__name__}: {error}") from error
     try:
         return json.loads(body)

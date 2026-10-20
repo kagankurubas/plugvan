@@ -212,7 +212,7 @@ def test_publish_testpypi_only_downloads_dist_and_publishes_to_testpypi():
 
 def test_verify_testpypi_runs_after_the_upload_without_id_token():
     job = _jobs()[VERIFY_TESTPYPI]
-    assert PUBLISH_TESTPYPI in job["needs"] and "release" in job["needs"]
+    assert sorted(job["needs"]) == ["publish-testpypi", "release"]
     assert job["if"] == "needs.release.outputs.prerelease == 'true'"
     assert job["permissions"] == {"contents": "read"}
     assert "id-token" not in job["permissions"]
