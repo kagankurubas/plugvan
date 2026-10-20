@@ -56,7 +56,8 @@ RELEASE_GUARD = "github.event_name == 'push' && startsWith(github.ref, 'refs/tag
 PUBLISH_TESTPYPI = "publish-testpypi"
 VERIFY_TESTPYPI = "verify-testpypi"
 PUBLISH_PYPI = "publish-pypi"
-TAG_ONLY_JOB_NAMES = {"release", "publish (TestPyPI)", "verify (TestPyPI)", "publish (PyPI)"}
+VERIFY_PYPI = "verify-pypi"
+TAG_ONLY_JOB_NAMES = {"release", "publish (TestPyPI)", "verify (TestPyPI)", "publish (PyPI)", "verify (PyPI)"}
 PYPI_VERSION_PAGE = "https://pypi.org/project/plugvan-mcp/${{ needs.release.outputs.version }}/"
 PUBLISH_ACTION = "pypa/gh-action-pypi-publish@"
 RC_ONLY = "needs.release.outputs.prerelease == 'true'"
@@ -276,6 +277,27 @@ def test_verify_testpypi_checks_the_testpypi_listing_within_its_timeout():
     ]
     assert "${{" not in step["run"]
     # The script's whole retry window, plus a margin for checkout, setup and download, fits the timeout.
+    assert job["timeout-minutes"] * 60 >= _verify_script().WORST_CASE_SECONDS + 120
+
+
+def test_verify_pypi_runs_after_the_upload_without_id_token():
+    job = _jobs()[VERIFY_PYPI]
+    assert sorted(job["needs"]) == ["publish-pypi", "release"]
+    assert job["if"] == FINAL_ONLY
+    assert job["permissions"] == {"contents": "read"}
+    assert "id-token" not in job["permissions"]
+
+
+def test_verify_pypi_checks_the_pypi_listing_within_its_timeout():
+    job = _jobs()[VERIFY_PYPI]
+    steps = [step for step in job["steps"] if "run" in step]
+    assert len(steps) == 1
+    step = steps[0]
+    assert step.get("env") == {"VERSION": "${{ needs.release.outputs.version }}"}
+    assert shlex.split(step["run"]) == [
+        "python", "scripts/verify_index_upload.py", "https://pypi.org/pypi", "plugvan-mcp", "$VERSION", "dist",
+    ]
+    assert "${{" not in step["run"]
     assert job["timeout-minutes"] * 60 >= _verify_script().WORST_CASE_SECONDS + 120
 
 
