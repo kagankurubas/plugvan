@@ -4,36 +4,39 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Added
-- TestPyPI publishing for release candidates (#77): a `vX.Y.ZrcN` tag
-  uploads the sdist and wheel that CI built and tested to TestPyPI with
-  trusted publishing (no API token or secret), then checks that TestPyPI
-  serves exactly those files, with the same names and sha256 digests.
-  Only the upload job gets `id-token: write`. Final versions are not
-  uploaded to any index yet.
-- Release checks ahead of PyPI publishing (#76): the release job checks
-  that both archive file names carry exactly the tag's version, and the
-  `package (ubuntu-24.04, Python 3.10)` job runs `twine check --strict`
-  on every PR, so the README must render as the PyPI long description.
-- A workflow structure test pins the CI permissions, full-SHA action
-  pins, the required check names, the release job's `needs` and tag
-  guard, the per-ref concurrency group, the `dist` artifact retention,
-  and how the release job passes the tag's version to the archive check
-  (through `env`, never as an expression inside the shell script).
-
-### Changed
-- Release versions must be canonical, `X.Y.Z` or `X.Y.ZrcN` (#76).
-  Other spellings (such as `0.1.1-rc1` or `0.1.1RC1`) and `a`, `b`,
-  `dev`, `post` and local versions fail the release job before anything
-  is created. Only an `X.Y.ZrcN` version is published as a prerelease.
-- README renders the same on GitHub and PyPI.
-
-### Fixed
-- README: use `where.exe uvx` so the command also works in PowerShell.
-
 ### Backlog
 - `update_section`: expose `order` and `collapsed` (supported by the SDK).
 - `project_move`: needs the Sync API's separate command.
+
+## [0.1.1rc1] - 2026-10-20
+
+Release candidate for 0.1.1, published to TestPyPI only to rehearse the
+PyPI release; it is not uploaded to PyPI.
+
+### Added
+- Release candidates are published to TestPyPI with trusted publishing
+  (#77): a `vX.Y.ZrcN` tag uploads the sdist and wheel that CI built and
+  tested, with no API token or secret, then checks that TestPyPI serves
+  exactly those files, with the same names and sha256 digests.
+- Release checks ahead of PyPI publishing (#76): the release checks that
+  both archive file names carry exactly the tag's version, and every PR
+  runs `twine check --strict`, so the README must render as the PyPI
+  project description.
+
+### Changed
+- Release versions must be canonical, `X.Y.Z` or `X.Y.ZrcN` (#76); other
+  spellings, and `a`, `b`, `dev`, `post` and local versions, are
+  rejected before anything is published. Only an `X.Y.ZrcN` version is a
+  prerelease.
+- The README reads the same on GitHub and on PyPI, where it is the
+  project description: the architecture diagram is plain text, warnings
+  are plain quotes, the LICENSE links are absolute, and the navigation
+  links point at headings.
+
+### Fixed
+- README: the install step finds `uvx` with `where.exe uvx`, which also
+  works in PowerShell (there, plain `where` is an alias of `Where-Object`
+  and prints nothing).
 
 ## [0.1.0] - 2026-10-19
 
