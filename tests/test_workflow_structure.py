@@ -5,12 +5,13 @@ only what the workflow has today; nothing here describes a job that does not exi
 
 - the workflow-level `permissions` are exactly `contents: read`, and `contents: write` appears
   only on `release`;
-- `id-token` appears only on `publish-testpypi`, whose permissions are exactly `id-token: write`;
+- `id-token` appears only on the two publish jobs, `publish-testpypi` and `publish-pypi`, whose
+  permissions are each exactly `id-token: write`;
 - every `uses:` is pinned to a full 40-hex commit SHA;
 - nothing references `secrets.`;
 - the job display names, with the test matrix expanded, are exactly the `main` ruleset's nine
-  required checks plus the tag-only jobs (`release`, `publish (TestPyPI)`, `verify (TestPyPI)`),
-  which never collide with them;
+  required checks plus the tag-only jobs (`release`, `publish (TestPyPI)`, `verify (TestPyPI)`,
+  `publish (PyPI)`, `verify (PyPI)`), which never collide with them;
 - `release` needs exactly the tests and both package jobs and keeps its tag-only `if:` guard;
 - the concurrency group contains `github.ref` and cancels in-progress runs, so a push to `main`
   never cancels a tag run;
@@ -29,7 +30,16 @@ only what the workflow has today; nothing here describes a job that does not exi
 - `verify-testpypi` needs `publish-testpypi` (and `release`, for its outputs), has the same `if:`,
   permissions exactly `contents: read` (no `id-token`), runs scripts/verify_index_upload.py
   against TestPyPI with the version from `env` (no `${{ }}` in `run:`), and its timeout covers
-  the script's whole retry window.
+  the script's whole retry window;
+- `publish-pypi` needs `release`, runs only when `prerelease` is `'false'`, uses the `pypi`
+  environment with the version's PyPI page as its URL, has a short timeout, and its only steps are
+  downloading the `dist` artifact and the same pinned publish action as `publish-testpypi`, with
+  no inputs at all (the default repository, PyPI);
+- neither publish job, nor any of their steps, sets `env:`;
+- `verify-pypi` mirrors `verify-testpypi` for PyPI: needs `publish-pypi` and `release`, the `'false'`
+  `if:`, exactly `contents: read`, the script against PyPI, a timeout that covers the retry window;
+- mutual exclusion: only the two publish jobs run the publish action, an rc (`prerelease` `'true'`)
+  reaches only TestPyPI and a final (`'false'`) only PyPI, in the `testpypi` and `pypi` environments.
 """
 
 import importlib.util
@@ -55,7 +65,13 @@ REQUIRED_CHECKS = {
 RELEASE_GUARD = "github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')"
 PUBLISH_TESTPYPI = "publish-testpypi"
 VERIFY_TESTPYPI = "verify-testpypi"
-TAG_ONLY_JOB_NAMES = {"release", "publish (TestPyPI)", "verify (TestPyPI)"}
+PUBLISH_PYPI = "publish-pypi"
+VERIFY_PYPI = "verify-pypi"
+TAG_ONLY_JOB_NAMES = {"release", "publish (TestPyPI)", "verify (TestPyPI)", "publish (PyPI)", "verify (PyPI)"}
+PYPI_VERSION_PAGE = "https://pypi.org/project/plugvan-mcp/${{ needs.release.outputs.version }}/"
+PUBLISH_ACTION = "pypa/gh-action-pypi-publish@"
+RC_ONLY = "needs.release.outputs.prerelease == 'true'"
+FINAL_ONLY = "needs.release.outputs.prerelease == 'false'"
 TESTPYPI_UPLOAD_URL = "https://test.pypi.org/legacy/"
 TESTPYPI_VERSION_PAGE = "https://test.pypi.org/project/plugvan-mcp/${{ needs.release.outputs.version }}/"
 PINNED_ACTION = re.compile(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}")
@@ -106,13 +122,14 @@ def test_contents_write_only_on_release():
     assert writers == ["release"]
 
 
-def test_id_token_write_only_on_publish_testpypi():
+def test_id_token_write_only_on_the_two_publish_jobs():
     blocks = {"<workflow>": _workflow().get("permissions")} | {
         job_id: job.get("permissions") for job_id, job in _jobs().items()
     }
     holders = [where for where, permissions in blocks.items() if isinstance(permissions, dict) and "id-token" in permissions]
-    assert holders == [PUBLISH_TESTPYPI], holders
-    assert _jobs()[PUBLISH_TESTPYPI]["permissions"] == {"id-token": "write"}
+    assert sorted(holders) == sorted([PUBLISH_TESTPYPI, PUBLISH_PYPI]), holders
+    for job_id in (PUBLISH_TESTPYPI, PUBLISH_PYPI):
+        assert _jobs()[job_id]["permissions"] == {"id-token": "write"}, job_id
 
 
 def test_every_action_is_pinned_to_a_full_commit_sha():
@@ -210,6 +227,57 @@ def test_publish_testpypi_only_downloads_dist_and_publishes_to_testpypi():
     assert publish["with"] == {"repository-url": TESTPYPI_UPLOAD_URL}
 
 
+def test_publish_pypi_runs_after_release_for_final_tags_in_the_pypi_environment():
+    job = _jobs()[PUBLISH_PYPI]
+    assert job["needs"] in ("release", ["release"])
+    assert job["if"] == FINAL_ONLY
+    assert job["environment"] == {"name": "pypi", "url": PYPI_VERSION_PAGE}
+    assert 0 < job["timeout-minutes"] <= 10
+
+
+def test_publish_pypi_only_downloads_dist_and_publishes_to_the_default_index():
+    jobs = _jobs()
+    steps = jobs[PUBLISH_PYPI]["steps"]
+    assert [step.get("run") for step in steps] == [None, None], "no run: steps (and so no checkout script)"
+    download, publish = steps
+    assert download["uses"].startswith("actions/download-artifact@")
+    assert download["with"] == {"name": "dist", "path": "dist"}
+    # The same pinned action as the TestPyPI job, with no inputs at all: the default repository (PyPI),
+    # no user, password or token, skip-existing left off.
+    assert publish["uses"] == jobs[PUBLISH_TESTPYPI]["steps"][1]["uses"]
+    assert publish["uses"].startswith(PUBLISH_ACTION)
+    assert "with" not in publish
+
+
+def test_publish_jobs_set_no_environment_variables():
+    """No `env:` on a publish job or any of its steps: variables such as TWINE_PASSWORD or
+    TWINE_REPOSITORY_URL could change where or how the action uploads, outside its pinned inputs.
+    (`environment:` is a different key: the deployment environment.)"""
+    for job_id in (PUBLISH_TESTPYPI, PUBLISH_PYPI):
+        job = _jobs()[job_id]
+        assert "env" not in job, job_id
+        assert [step for step in job["steps"] if "env" in step] == [], job_id
+
+
+def test_an_rc_reaches_only_testpypi_and_a_final_only_pypi():
+    """Mutual exclusion: for each value of release's `prerelease` output exactly one job publishes, to the
+    index that value belongs to. Every job that runs the publish action is one of the two publish jobs."""
+    jobs = _jobs()
+    publishers = sorted(job_id for job_id, job in jobs.items() if any(
+        step.get("uses", "").startswith(PUBLISH_ACTION) for step in job.get("steps", [])))
+    assert publishers == sorted([PUBLISH_TESTPYPI, PUBLISH_PYPI])
+
+    def target(job_id: str) -> str:
+        step = next(s for s in jobs[job_id]["steps"] if s.get("uses", "").startswith(PUBLISH_ACTION))
+        return (step.get("with") or {}).get("repository-url", "PyPI (default)")
+
+    routes = {condition: [job_id for job_id in publishers if jobs[job_id].get("if") == condition]
+              for condition in (RC_ONLY, FINAL_ONLY)}
+    assert routes == {RC_ONLY: [PUBLISH_TESTPYPI], FINAL_ONLY: [PUBLISH_PYPI]}, routes
+    assert (target(PUBLISH_TESTPYPI), target(PUBLISH_PYPI)) == (TESTPYPI_UPLOAD_URL, "PyPI (default)")
+    assert (jobs[PUBLISH_TESTPYPI]["environment"]["name"], jobs[PUBLISH_PYPI]["environment"]["name"]) == ("testpypi", "pypi")
+
+
 def test_verify_testpypi_runs_after_the_upload_without_id_token():
     job = _jobs()[VERIFY_TESTPYPI]
     assert sorted(job["needs"]) == ["publish-testpypi", "release"]
@@ -229,6 +297,27 @@ def test_verify_testpypi_checks_the_testpypi_listing_within_its_timeout():
     ]
     assert "${{" not in step["run"]
     # The script's whole retry window, plus a margin for checkout, setup and download, fits the timeout.
+    assert job["timeout-minutes"] * 60 >= _verify_script().WORST_CASE_SECONDS + 120
+
+
+def test_verify_pypi_runs_after_the_upload_without_id_token():
+    job = _jobs()[VERIFY_PYPI]
+    assert sorted(job["needs"]) == ["publish-pypi", "release"]
+    assert job["if"] == FINAL_ONLY
+    assert job["permissions"] == {"contents": "read"}
+    assert "id-token" not in job["permissions"]
+
+
+def test_verify_pypi_checks_the_pypi_listing_within_its_timeout():
+    job = _jobs()[VERIFY_PYPI]
+    steps = [step for step in job["steps"] if "run" in step]
+    assert len(steps) == 1
+    step = steps[0]
+    assert step.get("env") == {"VERSION": "${{ needs.release.outputs.version }}"}
+    assert shlex.split(step["run"]) == [
+        "python", "scripts/verify_index_upload.py", "https://pypi.org/pypi", "plugvan-mcp", "$VERSION", "dist",
+    ]
+    assert "${{" not in step["run"]
     assert job["timeout-minutes"] * 60 >= _verify_script().WORST_CASE_SECONDS + 120
 
 
