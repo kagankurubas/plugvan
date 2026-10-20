@@ -111,6 +111,13 @@ jobs:
       - name: Check archive contents
         run: python scripts/check_dist_contents.py dist
 
+      # The metadata check PyPI applies on upload, run on every PR: --strict turns warnings into
+      # failures, and the README (the long description) must render. Runs before the upload.
+      - name: Check package metadata (twine)
+        run: |
+          python -m pip install twine==7.0.0
+          python -m twine check --strict dist/*
+
       # Installs the checked wheel into a throwaway venv outside the checkout, proves with
       # `python -I` that plugvan is imported from that venv's site-packages, and runs only the
       # installed-mode tests (STDIO seam against the installed server, .env rules) with
