@@ -9,8 +9,8 @@ only what the workflow has today; nothing here describes a job that does not exi
 - every `uses:` is pinned to a full 40-hex commit SHA;
 - nothing references `secrets.`;
 - the job display names, with the test matrix expanded, are exactly the `main` ruleset's nine
-  required checks plus the tag-only jobs (`release`, `publish (TestPyPI)`), which never collide
-  with them;
+  required checks plus the tag-only jobs (`release`, `publish (TestPyPI)`, `verify (TestPyPI)`),
+  which never collide with them;
 - `release` needs exactly the tests and both package jobs and keeps its tag-only `if:` guard;
 - the concurrency group contains `github.ref` and cancels in-progress runs, so a push to `main`
   never cancels a tag run;
@@ -25,9 +25,14 @@ only what the workflow has today; nothing here describes a job that does not exi
   environment with the version's TestPyPI page as its URL, has a short timeout, and its only
   steps are downloading the `dist` artifact and the
   publish action with the TestPyPI upload URL as its only input: no `run:` step, no user,
-  password or token, no `skip-existing`.
+  password or token, no `skip-existing`;
+- `verify-testpypi` needs `publish-testpypi` (and `release`, for its outputs), has the same `if:`,
+  permissions exactly `contents: read` (no `id-token`), runs scripts/verify_index_upload.py
+  against TestPyPI with the version from `env` (no `${{ }}` in `run:`), and its timeout covers
+  the script's whole retry window.
 """
 
+import importlib.util
 import itertools
 import re
 import shlex
@@ -49,7 +54,8 @@ REQUIRED_CHECKS = {
 }
 RELEASE_GUARD = "github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')"
 PUBLISH_TESTPYPI = "publish-testpypi"
-TAG_ONLY_JOB_NAMES = {"release", "publish (TestPyPI)"}
+VERIFY_TESTPYPI = "verify-testpypi"
+TAG_ONLY_JOB_NAMES = {"release", "publish (TestPyPI)", "verify (TestPyPI)"}
 TESTPYPI_UPLOAD_URL = "https://test.pypi.org/legacy/"
 TESTPYPI_VERSION_PAGE = "https://test.pypi.org/project/plugvan-mcp/${{ needs.release.outputs.version }}/"
 PINNED_ACTION = re.compile(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}")
@@ -202,3 +208,33 @@ def test_publish_testpypi_only_downloads_dist_and_publishes_to_testpypi():
     assert publish["uses"].startswith("pypa/gh-action-pypi-publish@")
     # Only the TestPyPI upload URL: no user, password or token input, and skip-existing left off.
     assert publish["with"] == {"repository-url": TESTPYPI_UPLOAD_URL}
+
+
+def test_verify_testpypi_runs_after_the_upload_without_id_token():
+    job = _jobs()[VERIFY_TESTPYPI]
+    assert PUBLISH_TESTPYPI in job["needs"] and "release" in job["needs"]
+    assert job["if"] == "needs.release.outputs.prerelease == 'true'"
+    assert job["permissions"] == {"contents": "read"}
+    assert "id-token" not in job["permissions"]
+
+
+def test_verify_testpypi_checks_the_testpypi_listing_within_its_timeout():
+    job = _jobs()[VERIFY_TESTPYPI]
+    steps = [step for step in job["steps"] if "run" in step]
+    assert len(steps) == 1
+    step = steps[0]
+    assert step.get("env") == {"VERSION": "${{ needs.release.outputs.version }}"}
+    assert shlex.split(step["run"]) == [
+        "python", "scripts/verify_index_upload.py", "https://test.pypi.org/pypi", "plugvan-mcp", "$VERSION", "dist",
+    ]
+    assert "${{" not in step["run"]
+    # The script's whole retry window, plus a margin for checkout, setup and download, fits the timeout.
+    assert job["timeout-minutes"] * 60 >= _verify_script().WORST_CASE_SECONDS + 120
+
+
+def _verify_script():
+    path = WORKFLOW.parents[2] / "scripts" / "verify_index_upload.py"
+    spec = importlib.util.spec_from_file_location("verify_index_upload", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module

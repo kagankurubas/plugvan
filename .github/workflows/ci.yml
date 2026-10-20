@@ -264,3 +264,33 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
           repository-url: https://test.pypi.org/legacy/
+
+  # Confirms that TestPyPI serves exactly the uploaded files: the same names and sha256 digests as
+  # this run's `dist` artifact. Retries while the version is not visible yet, within a bounded
+  # window that fits the timeout; never uploads and has no `id-token`.
+  verify-testpypi:
+    name: verify (TestPyPI)
+    needs: [release, publish-testpypi]
+    if: needs.release.outputs.prerelease == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist
+
+      - name: Check that TestPyPI serves exactly the dist files
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: python scripts/verify_index_upload.py https://test.pypi.org/pypi plugvan-mcp "$VERSION" dist
