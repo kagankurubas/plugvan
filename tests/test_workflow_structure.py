@@ -5,12 +5,13 @@ only what the workflow has today; nothing here describes a job that does not exi
 
 - the workflow-level `permissions` are exactly `contents: read`, and `contents: write` appears
   only on `release`;
-- `id-token` appears only on `publish-testpypi`, whose permissions are exactly `id-token: write`;
+- `id-token` appears only on the two publish jobs, `publish-testpypi` and `publish-pypi`, whose
+  permissions are each exactly `id-token: write`;
 - every `uses:` is pinned to a full 40-hex commit SHA;
 - nothing references `secrets.`;
 - the job display names, with the test matrix expanded, are exactly the `main` ruleset's nine
-  required checks plus the tag-only jobs (`release`, `publish (TestPyPI)`, `verify (TestPyPI)`),
-  which never collide with them;
+  required checks plus the tag-only jobs (`release`, `publish (TestPyPI)`, `verify (TestPyPI)`,
+  `publish (PyPI)`, `verify (PyPI)`), which never collide with them;
 - `release` needs exactly the tests and both package jobs and keeps its tag-only `if:` guard;
 - the concurrency group contains `github.ref` and cancels in-progress runs, so a push to `main`
   never cancels a tag run;
@@ -29,7 +30,16 @@ only what the workflow has today; nothing here describes a job that does not exi
 - `verify-testpypi` needs `publish-testpypi` (and `release`, for its outputs), has the same `if:`,
   permissions exactly `contents: read` (no `id-token`), runs scripts/verify_index_upload.py
   against TestPyPI with the version from `env` (no `${{ }}` in `run:`), and its timeout covers
-  the script's whole retry window.
+  the script's whole retry window;
+- `publish-pypi` needs `release`, runs only when `prerelease` is `'false'`, uses the `pypi`
+  environment with the version's PyPI page as its URL, has a short timeout, and its only steps are
+  downloading the `dist` artifact and the same pinned publish action as `publish-testpypi`, with
+  no inputs at all (the default repository, PyPI);
+- neither publish job, nor any of their steps, sets `env:`;
+- `verify-pypi` mirrors `verify-testpypi` for PyPI: needs `publish-pypi` and `release`, the `'false'`
+  `if:`, exactly `contents: read`, the script against PyPI, a timeout that covers the retry window;
+- mutual exclusion: only the two publish jobs run the publish action, an rc (`prerelease` `'true'`)
+  reaches only TestPyPI and a final (`'false'`) only PyPI, in the `testpypi` and `pypi` environments.
 """
 
 import importlib.util
@@ -237,6 +247,16 @@ def test_publish_pypi_only_downloads_dist_and_publishes_to_the_default_index():
     assert publish["uses"] == jobs[PUBLISH_TESTPYPI]["steps"][1]["uses"]
     assert publish["uses"].startswith(PUBLISH_ACTION)
     assert "with" not in publish
+
+
+def test_publish_jobs_set_no_environment_variables():
+    """No `env:` on a publish job or any of its steps: variables such as TWINE_PASSWORD or
+    TWINE_REPOSITORY_URL could change where or how the action uploads, outside its pinned inputs.
+    (`environment:` is a different key: the deployment environment.)"""
+    for job_id in (PUBLISH_TESTPYPI, PUBLISH_PYPI):
+        job = _jobs()[job_id]
+        assert "env" not in job, job_id
+        assert [step for step in job["steps"] if "env" in step] == [], job_id
 
 
 def test_an_rc_reaches_only_testpypi_and_a_final_only_pypi():
