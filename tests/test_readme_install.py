@@ -3,6 +3,8 @@ Tests the Claude Desktop config examples in the README, English and Turkish sect
 block must parse (an unescaped Windows backslash does not), both sections must show the release
 installs (uvx with the release-asset wheel, and a venv's plugvan-mcp.exe) and the same JSON
 examples, and PYTHONPATH may only appear in the checkout config (`python -m plugvan.todoist`).
+Blocks are found with the shared fence splitter, by the info string's first word in any case, so
+`~~~json`, ```` ```json title ```` and ```` ```PowerShell ```` blocks are checked too.
 """
 
 import json
@@ -10,6 +12,8 @@ import re
 from pathlib import Path
 
 import pytest
+
+from tests.readme_markdown import info_language, split_fenced
 
 README = Path(__file__).resolve().parents[1] / "README.md"
 SECTIONS = ("## English", "## Türkçe")
@@ -25,8 +29,13 @@ def _section(heading: str) -> str:
     return text[start : end if end != -1 else None]
 
 
+def _blocks(text: str, language: str) -> list[str]:
+    """Bodies of the fenced blocks whose info string starts with `language` (any case, any fence)."""
+    return [body for info, body in split_fenced(text)[0] if info_language(info) == language]
+
+
 def _json_blocks(heading: str) -> list[str]:
-    return re.findall(r"^```json\n(.*?)^```$", _section(heading), re.MULTILINE | re.DOTALL)
+    return _blocks(_section(heading), "json")
 
 
 def _servers(heading: str) -> list[dict]:
@@ -79,8 +88,7 @@ def test_english_and_turkish_show_the_same_json_examples():
 
 def test_powershell_blocks_do_not_run_bare_where():
     # In PowerShell `where` is an alias of Where-Object and prints nothing; `where.exe` works.
-    text = README.read_text(encoding="utf-8")
-    blocks = re.findall(r"^```powershell\n(.*?)^```$", text, re.MULTILINE | re.DOTALL)
+    blocks = _blocks(README.read_text(encoding="utf-8"), "powershell")
     assert blocks
     offending = [block for block in blocks if re.search(r"(?m)^\s*where\s", block)]
     assert not offending, offending

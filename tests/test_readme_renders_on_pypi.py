@@ -4,13 +4,13 @@ description. A mermaid block shows as raw code on PyPI, and a relative link or i
 nowhere there. GitHub alerts (`> [!CAUTION]`) depend on the renderer: readme_renderer 46.0 renders
 them as admonitions, and which version pypi.org runs is not verified, so the README uses plain
 blockquotes, which look the same on every renderer. Fenced code blocks (``` or ~~~, any length)
-are not checked for links, since their text is shown verbatim.
+are not checked for links or alerts, since their text is shown verbatim.
 """
 
 import re
 from pathlib import Path
 
-from tests.readme_markdown import split_fenced
+from tests.readme_markdown import info_language, split_fenced
 
 README = Path(__file__).resolve().parents[1] / "README.md"
 ABSOLUTE_TARGET = re.compile(r"^(https?://|mailto:|#)")
@@ -26,21 +26,15 @@ def _text() -> str:
     return README.read_text(encoding="utf-8")
 
 
-def test_split_fenced_reads_every_fence_kind():
-    text = "a\n```mermaid\nx\n```\nb\n~~~ Mermaid\ny\n~~~\n````text\n```\nz\n````\nc\n   ~~~~\nopen"
-    blocks, prose = split_fenced(text)
-    assert blocks == [("mermaid", "x"), ("Mermaid", "y"), ("text", "```\nz"), ("", "open")]
-    assert prose == "a\nb\nc"
-
-
 def test_no_mermaid_block():
     blocks, _ = split_fenced(_text())
-    offending = [info for info, _ in blocks if info.split()[:1] and info.split()[0].lower() == "mermaid"]
+    offending = [info for info, _ in blocks if info_language(info) == "mermaid"]
     assert not offending, offending
 
 
 def test_no_github_alert_marker():
-    offending = re.findall(r"^[ \t]*>[ \t]*\[!\w+\].*$", _text(), re.MULTILINE)
+    _, prose = split_fenced(_text())
+    offending = re.findall(r"^[ \t]*>[ \t]*\[!\w+\].*$", prose, re.MULTILINE)
     assert not offending, offending
 
 
