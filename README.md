@@ -19,14 +19,14 @@
 
 <p align="center">
   <a href="#english">English</a> •
-  <a href="#turkish">Türkçe</a> •
-  <a href="#architecture">Architecture</a> •
-  <a href="#tests">Tests</a>
+  <a href="#türkçe">Türkçe</a> •
+  <a href="#architecture--mimari">Architecture</a> •
+  <a href="#tests--testler">Tests</a>
 </p>
 
 ---
 
-## Architecture
+## Architecture / Mimari
 
 ```text
 Input source:          Claude Desktop (MCP client via STDIO)
@@ -196,7 +196,7 @@ TODOIST_API_TOKEN=your_todoist_api_token_here
 - **`TODOIST_API_TOKEN`**: Log into [Todoist Web](https://todoist.com) ➔ Settings ➔ **Integrations** ➔ **Developer** ➔ Copy your API token.
 - **`PLUGVAN_LANG`** (optional): the language of tool results, `en` (default) or `tr` for Turkish.
 
-> **Warning: 🔒 Security Considerations:**
+> **Warning:** 🔒 Security considerations
 > - **Secret Management:** Keep `.env` private. It is pre-configured in `.gitignore` and must never be committed to Git.
 
 ---
@@ -230,7 +230,7 @@ Integrate Todoist directly into your Claude Desktop application.
 
 ---
 
-## Turkish
+## Türkçe
 
 Plugvan, temelde yerel çalışan bir **Model Context Protocol (MCP)** sunucusudur: Claude Desktop onu alt süreç olarak başlatır ve STDIO üzerinden konuşur; web sunucusu veya deploy gerekmez. Yapay zeka asistanının Todoist'i sohbet üzerinden yönetmesini sağlar.
 
@@ -379,7 +379,7 @@ TODOIST_API_TOKEN=kendi_todoist_api_tokeniniz
 - **`TODOIST_API_TOKEN`**: [Todoist Web](https://todoist.com) ➔ Ayarlar ➔ **Entegrasyonlar** ➔ **Geliştirici** ➔ API belirtecinizi kopyalayın.
 - **`PLUGVAN_LANG`** (isteğe bağlı): araç sonuçlarının dili; `en` (varsayılan) veya Türkçe için `tr`.
 
-> **Uyarı: 🔒 Güvenlik Uyarıları:**
+> **Uyarı:** 🔒 Güvenlik uyarıları
 > - **Gizli Anahtar Yönetimi:** `.env` dosyası `.gitignore`'da tanımlıdır; bu dosyayı asla Git deposuna eklemeyin ve kimseyle paylaşmayın.
 
 ---
@@ -413,7 +413,7 @@ Claude Desktop uygulamanıza Todoist yeteneği kazandırmak için:
 
 ---
 
-## Tests
+## Tests / Testler
 
 Projede birim ve entegrasyon testleri yer almaktadır:
 
