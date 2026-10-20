@@ -125,3 +125,15 @@ The default five labels are used: `needs-triage`, `needs-info`, `ready-for-agent
 ### Domain docs
 
 Single-context layout: a single `CONTEXT.md` + `docs/adr/` at the repo root. Neither exists yet; they are created lazily when terms or decisions get resolved. See `docs/agents/domain.md`.
+
+### Skills and review workflow
+
+The maintainer invokes the skills. The flow:
+
+1. `/to-spec` publishes the spec as an issue labelled `ready-for-agent`; `/to-tickets` splits it into tickets.
+2. `/implement #N`, one ticket at a time:
+   - The issue is the single source of scope; stay inside it and respect its Out of scope section. When the issue is ambiguous or conflicts with the maintainer's instructions, stop and ask.
+   - Work in checkpoints. In each one: show red first (a failing test, or a mutation run), then implement, then show green. End every checkpoint by stopping and reporting; start the next one after the maintainer confirms.
+3. Before the PR is opened, `/code-review` reports the Standards and Spec axes separately. Its findings are reported only; applying any of them is a separate maintainer decision.
+
+Pushing, tagging (see the Release procedure above) and deleting files, branches or worktrees belong to the maintainer; the CLI does one only on an explicit instruction for that one action.
