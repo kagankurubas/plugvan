@@ -9,6 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 .\venv\Scripts\activate
 
 # Install the project (editable) with its test dependencies; pyproject.toml is the single dependency source
+# Re-run it whenever pyproject.toml's dependencies change: tests/test_distribution_metadata.py reads the installed package's metadata, so a stale install passes locally while CI fails
 pip install -e ".[test]"
 
 # Run the full test suite
