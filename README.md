@@ -113,8 +113,9 @@ where.exe uvx
   }
 }
 ```
-   To pin a version, write `plugvan-mcp==X.Y.Z` instead of `plugvan-mcp` in `args`.
 4. Restart Claude Desktop.
+
+To pin a version, write `plugvan-mcp==X.Y.Z` instead of `plugvan-mcp` in `args`. This form works with `uvx` on the command line; it has not been tried in a Claude Desktop config.
 
 **Option B: pip into a virtual environment**
 
@@ -295,8 +296,9 @@ where.exe uvx
   }
 }
 ```
-   Bir sürümü sabitlemek için `args` içinde `plugvan-mcp` yerine `plugvan-mcp==X.Y.Z` yazın.
 4. Claude Desktop'ı tamamen kapatıp yeniden başlatın.
+
+Bir sürümü sabitlemek için `args` içinde `plugvan-mcp` yerine `plugvan-mcp==X.Y.Z` yazın. Bu biçim komut satırında `uvx` ile çalışır; Claude Desktop yapılandırmasında denenmedi.
 
 **B seçeneği: sanal ortama pip ile kurulum**
 
