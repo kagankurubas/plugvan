@@ -7,8 +7,10 @@ module is skipped.
 
 Every server process starts from a temporary directory outside the checkout, without `-I`, and
 with an explicit environment (PYTHONIOENCODING=utf-8, no PYTHONPATH, no PLUGVAN_LANG unless a
-test sets it, proxies pointed at a closed loopback port). The SDK's stdio client adds only its
-short list of safe OS variables. The one exception is the request-URL test: its server's
+test sets it, every proxy variable on the loopback proxy from tests/conftest.py). The SDK's
+stdio client adds only its short list of safe OS variables. The proxy counts each connection
+attempt and forwards nothing, and every test asserts zero attempts once its process has exited;
+it sees only requests that honour the proxy variables. The one exception is the request-URL test: its server's
 PYTHONPATH holds only the test-side start-up hook that answers every HTTP request.
 
 The .env tests plant a .env containing only PLUGVAN_LANG=tr in the venv directory, an ancestor
@@ -118,8 +120,6 @@ def _run_server(command, env, workdir: Path, tool_call=None):
             errlog.flush()
             log = stderr_path.read_text(encoding="utf-8", errors="replace")[-3000:]
             raise AssertionError(f"{command} failed ({type(exc).__name__}); server stderr:\n{log}") from exc
-    log = stderr_path.read_text(encoding="utf-8", errors="replace")
-    assert "HTTP Request" not in log, "the server made an HTTP request"
     return result
 
 

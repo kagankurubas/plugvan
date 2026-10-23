@@ -2,10 +2,9 @@
 STDIO seam test: the Todoist server started as a real process and driven by the MCP SDK's own
 stdio client (mcp.client.stdio), the way Claude Desktop runs it.
 
-This is the characterization safety net for the entry-point refactor (#59): it pins today's
-observable behaviour of `python -m plugvan.todoist` (starts, speaks MCP on a clean stdout,
-publishes the snapshot's tool names, exits on stdin close) and must stay green, unchanged,
-through that refactor.
+It was the characterization safety net for the entry-point refactor (#59, now closed): it
+pins the observable behaviour of `python -m plugvan.todoist` (starts, speaks MCP on a clean
+stdout, publishes the snapshot's tool names, exits on stdin close, makes no network request).
 
 Server command: by default the current interpreter with `-m plugvan.todoist`. The environment
 variable PLUGVAN_TEST_SERVER_COMMAND selects another command; its value is a JSON array of
@@ -14,12 +13,16 @@ shell quoting). Only the default runs in the normal suite.
 
 Hermetic subprocess: its environment is built here, never inherited wholesale. The SDK's stdio
 client adds only its own short list of safe OS variables (PATH, SYSTEMROOT, HOME, ...). The
-server gets a fake token, no PLUGVAN_LANG and no PYTHONPATH. The in-process network guard does
-not cross the process boundary, so offline-ness comes from what is called: list_tools only
-reads registered tool metadata, and the Todoist client is built inside tool bodies, which are
-never called. As a second line, every proxy variable points at a closed loopback port, so even
-an accidental HTTP request could not leave the machine; the test also asserts that the server
-logged no HTTP request.
+server gets a fake token, no PLUGVAN_LANG and no PYTHONPATH.
+
+Network detector: the in-process network guard does not cross the process boundary, so every
+proxy variable points at the loopback proxy from tests/conftest.py (the loopback_proxy
+fixture). It counts each connection attempt and closes it without forwarding anything, so no
+request leaves the machine, and every test asserts zero attempts once its server has exited.
+Its limit: it sees only requests that honour the proxy variables; a client that bypasses them
+(for example httpx with trust_env=False) is not counted. Offline-ness also comes from what is
+called: list_tools only reads registered tool metadata, and the Todoist client is built inside
+tool bodies.
 
 The one exception is the request-URL test: its server's PYTHONPATH holds only the test-side
 start-up hook that answers every HTTP request, and it calls list_tasks.
@@ -123,14 +126,12 @@ def test_server_lists_snapshot_tool_names_over_stdio(tmp_path, loopback_proxy):
             errlog.flush()
             server_log = stderr_path.read_text(encoding="utf-8", errors="replace")[-3000:]
             raise AssertionError(f"STDIO session failed ({type(exc).__name__}); server stderr:\n{server_log}") from exc
-    server_log = stderr_path.read_text(encoding="utf-8", errors="replace")
 
     expected = _expected_tool_names()
     assert names == expected, (
         f"missing: {sorted(expected - names)}, unexpected: {sorted(names - expected)}"
     )
     assert not stray_output, f"server wrote non-protocol output to stdout: {stray_output[:3]}"
-    assert "HTTP Request" not in server_log, "the server made an HTTP request while listing tools"
     assert loopback_proxy.attempts() == 0, "the server tried to reach the network while listing tools"
 
 
