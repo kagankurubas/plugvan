@@ -131,6 +131,56 @@ def test_server_lists_snapshot_tool_names_over_stdio(tmp_path):
     assert "HTTP Request" not in server_log, "the server made an HTTP request while listing tools"
 
 
+# Test-side start-up hook: answers every httpx request in the server process with an empty
+# Todoist results page (see its module docstring).
+FAKE_HTTP_HOOK_DIR = Path(__file__).resolve().parent / "fake_todoist_http"
+FILTER_WITH_USER_CONTENT = "#Secret Project & @private_label & search: salary"
+# Parts of the request URL and of the filter that survive URL encoding.
+LEAK_MARKERS = ("api.todoist.com", "tasks/filter", "Secret", "private_label", "salary")
+
+
+def _call_list_tasks(errlog, filter_query: str) -> str:
+    """Starts the server with the fake-HTTP start-up hook on its PYTHONPATH, calls list_tasks
+    once and shuts it down. Returns the tool's result text."""
+
+    async def scenario() -> str:
+        command = _server_command()
+        params = StdioServerParameters(
+            command=command[0],
+            args=command[1:],
+            env={**_server_env(), "PYTHONPATH": str(FAKE_HTTP_HOOK_DIR)},
+            cwd=str(REPO_ROOT),
+        )
+        async with stdio_client(params, errlog=errlog) as (read, write):
+            async with ClientSession(read, write) as session:
+                await asyncio.wait_for(session.initialize(), STEP_TIMEOUT)
+                result = await asyncio.wait_for(
+                    session.call_tool("list_tasks", {"filter_query": filter_query}), STEP_TIMEOUT
+                )
+                return result.content[0].text
+
+    return asyncio.run(asyncio.wait_for(scenario(), SCENARIO_TIMEOUT))
+
+
+def test_server_does_not_log_request_urls_over_stdio(tmp_path):
+    """With a real HTTP response and the entry point's own logging setup, the server's stderr
+    carries neither the request URL nor the user's filter text."""
+    stderr_path = tmp_path / "server-stderr.log"
+    with stderr_path.open("w", encoding="utf-8") as errlog:
+        try:
+            result = _call_list_tasks(errlog, FILTER_WITH_USER_CONTENT)
+        except BaseException as exc:
+            errlog.flush()
+            server_log = stderr_path.read_text(encoding="utf-8", errors="replace")[-3000:]
+            raise AssertionError(f"STDIO session failed ({type(exc).__name__}); server stderr:\n{server_log}") from exc
+    server_log = stderr_path.read_text(encoding="utf-8", errors="replace")
+
+    # Only a successful HTTP response yields this message, so the request was made and answered.
+    assert result == f"ℹ️ No open tasks match the filter '{FILTER_WITH_USER_CONTENT}'.", result
+    leaked = [marker for marker in LEAK_MARKERS if marker in server_log]
+    assert not leaked, f"request URL or filter text reached the server's stderr {leaked}:\n{server_log[-3000:]}"
+
+
 def test_server_exits_cleanly_on_stdin_close_without_stdout_output():
     """With stdin closed before any message, the server writes nothing to stdout and exits 0."""
     process = subprocess.Popen(
