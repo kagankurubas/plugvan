@@ -4,6 +4,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- The README's install sections, in English and Turkish, install from
+  PyPI (#79): Claude Desktop runs `uvx plugvan-mcp todoist`, or the
+  `plugvan-mcp.exe` of a virtual environment set up with
+  `pip install plugvan-mcp`. The GitHub Release wheel URLs are gone; to
+  pin a version, use `plugvan-mcp==X.Y.Z`.
+
 ### Backlog
 - `update_section`: expose `order` and `collapsed` (supported by the SDK).
 - `project_move`: needs the Sync API's separate command.

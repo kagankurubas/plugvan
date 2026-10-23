@@ -86,9 +86,9 @@ plugvan/
 
 ### 🚀 Getting Started
 
-#### Install from the release (no clone)
+#### Install from PyPI (no clone)
 
-Claude Desktop starts Plugvan from the release wheel; nothing needs to be cloned. Verified so far: Windows with Claude Desktop. CI also installs and tests the built wheel on Ubuntu and Windows. macOS and Linux with Claude Desktop have not been verified, so the steps below are for Windows.
+Claude Desktop starts Plugvan from PyPI (the `plugvan-mcp` package); nothing needs to be cloned. Verified so far: Windows with Claude Desktop. CI also installs and tests the built wheel on Ubuntu and Windows. macOS and Linux with Claude Desktop have not been verified, so the steps below are for Windows.
 
 **Option A: uvx (recommended)**
 
@@ -105,12 +105,7 @@ where.exe uvx
   "mcpServers": {
     "todoist": {
       "command": "C:\\path\\to\\uvx.exe",
-      "args": [
-        "--from",
-        "https://github.com/kagankurubas/plugvan/releases/download/v0.1.0/plugvan_mcp-0.1.0-py3-none-any.whl",
-        "plugvan-mcp",
-        "todoist"
-      ],
+      "args": ["plugvan-mcp", "todoist"],
       "env": {
         "TODOIST_API_TOKEN": "<your token>"
       }
@@ -120,12 +115,14 @@ where.exe uvx
 ```
 4. Restart Claude Desktop.
 
+To pin a version, write `plugvan-mcp==X.Y.Z` instead of `plugvan-mcp` in `args`. This form works with `uvx` on the command line; it has not been tried in a Claude Desktop config.
+
 **Option B: pip into a virtual environment**
 
 This install was verified from the Windows terminal; starting it from Claude Desktop with the config below has not been verified yet.
 ```powershell
 python -m venv C:\path\to\plugvan-venv
-C:\path\to\plugvan-venv\Scripts\python.exe -m pip install https://github.com/kagankurubas/plugvan/releases/download/v0.1.0/plugvan_mcp-0.1.0-py3-none-any.whl
+C:\path\to\plugvan-venv\Scripts\python.exe -m pip install plugvan-mcp
 ```
 Then use the venv's `plugvan-mcp.exe` as `"command"` (again with `\\` in JSON):
 ```json
@@ -144,10 +141,10 @@ Then use the venv's `plugvan-mcp.exe` as `"command"` (again with `\\` in JSON):
 
 **Check the install (optional)**
 ```powershell
-C:\path\to\uvx.exe --from https://github.com/kagankurubas/plugvan/releases/download/v0.1.0/plugvan_mcp-0.1.0-py3-none-any.whl plugvan-mcp --version
+C:\path\to\uvx.exe plugvan-mcp --version
 C:\path\to\plugvan-venv\Scripts\plugvan-mcp.exe --version
 ```
-Each prints `plugvan-mcp <version>`, for example `plugvan-mcp 0.1.0`.
+Each prints `plugvan-mcp <version>`.
 
 **Configuration and security**
 - `TODOIST_API_TOKEN` (required) goes in the config's `env` block: in [Todoist Web](https://todoist.com) ➔ Settings ➔ **Integrations** ➔ **Developer**, copy your API token. For Turkish tool results, add `"PLUGVAN_LANG": "tr"` to the same block (`en` is the default).
@@ -272,9 +269,9 @@ plugvan/
 
 ### 🚀 Kurulum ve Başlangıç
 
-#### Sürümden kurulum (klonlamadan)
+#### PyPI'dan kurulum (klonlamadan)
 
-Claude Desktop, Plugvan'ı sürümdeki wheel dosyasından başlatır; depoyu klonlamanız gerekmez. Şu ana kadar doğrulanan: Claude Desktop ile Windows. CI ayrıca derlenen wheel'i Ubuntu ve Windows'ta kurup test eder. Claude Desktop ile macOS ve Linux doğrulanmadı; bu yüzden aşağıdaki adımlar Windows içindir.
+Claude Desktop, Plugvan'ı PyPI'dan (`plugvan-mcp` paketi) başlatır; depoyu klonlamanız gerekmez. Şu ana kadar doğrulanan: Claude Desktop ile Windows. CI ayrıca derlenen wheel'i Ubuntu ve Windows'ta kurup test eder. Claude Desktop ile macOS ve Linux doğrulanmadı; bu yüzden aşağıdaki adımlar Windows içindir.
 
 **A seçeneği: uvx (önerilen)**
 
@@ -291,12 +288,7 @@ where.exe uvx
   "mcpServers": {
     "todoist": {
       "command": "C:\\path\\to\\uvx.exe",
-      "args": [
-        "--from",
-        "https://github.com/kagankurubas/plugvan/releases/download/v0.1.0/plugvan_mcp-0.1.0-py3-none-any.whl",
-        "plugvan-mcp",
-        "todoist"
-      ],
+      "args": ["plugvan-mcp", "todoist"],
       "env": {
         "TODOIST_API_TOKEN": "<your token>"
       }
@@ -306,12 +298,14 @@ where.exe uvx
 ```
 4. Claude Desktop'ı tamamen kapatıp yeniden başlatın.
 
+Bir sürümü sabitlemek için `args` içinde `plugvan-mcp` yerine `plugvan-mcp==X.Y.Z` yazın. Bu biçim komut satırında `uvx` ile çalışır; Claude Desktop yapılandırmasında denenmedi.
+
 **B seçeneği: sanal ortama pip ile kurulum**
 
 Bu kurulum Windows terminalinden doğrulandı; aşağıdaki yapılandırmayla Claude Desktop'tan başlatılması henüz doğrulanmadı.
 ```powershell
 python -m venv C:\path\to\plugvan-venv
-C:\path\to\plugvan-venv\Scripts\python.exe -m pip install https://github.com/kagankurubas/plugvan/releases/download/v0.1.0/plugvan_mcp-0.1.0-py3-none-any.whl
+C:\path\to\plugvan-venv\Scripts\python.exe -m pip install plugvan-mcp
 ```
 Ardından `"command"` olarak sanal ortamdaki `plugvan-mcp.exe` dosyasını kullanın (JSON'da yine `\\` ile):
 ```json
@@ -330,10 +324,10 @@ Ardından `"command"` olarak sanal ortamdaki `plugvan-mcp.exe` dosyasını kulla
 
 **Kurulumu kontrol etme (isteğe bağlı)**
 ```powershell
-C:\path\to\uvx.exe --from https://github.com/kagankurubas/plugvan/releases/download/v0.1.0/plugvan_mcp-0.1.0-py3-none-any.whl plugvan-mcp --version
+C:\path\to\uvx.exe plugvan-mcp --version
 C:\path\to\plugvan-venv\Scripts\plugvan-mcp.exe --version
 ```
-Her ikisi de `plugvan-mcp <sürüm>` yazdırır, örneğin `plugvan-mcp 0.1.0`.
+Her ikisi de `plugvan-mcp <sürüm>` yazdırır.
 
 **Yapılandırma ve güvenlik**
 - `TODOIST_API_TOKEN` (zorunlu) yapılandırmanın `env` bloğuna yazılır: [Todoist Web](https://todoist.com) ➔ Ayarlar ➔ **Entegrasyonlar** ➔ **Geliştirici** ➔ API belirtecinizi kopyalayın. Araç sonuçlarını Türkçe almak için aynı bloğa `"PLUGVAN_LANG": "tr"` ekleyin (varsayılan `en`).
