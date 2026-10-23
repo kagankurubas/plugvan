@@ -8,7 +8,8 @@ module is skipped.
 Every server process starts from a temporary directory outside the checkout, without `-I`, and
 with an explicit environment (PYTHONIOENCODING=utf-8, no PYTHONPATH, no PLUGVAN_LANG unless a
 test sets it, proxies pointed at a closed loopback port). The SDK's stdio client adds only its
-short list of safe OS variables.
+short list of safe OS variables. The one exception is the request-URL test: its server's
+PYTHONPATH holds only the test-side start-up hook that answers every HTTP request.
 
 The .env tests plant a .env containing only PLUGVAN_LANG=tr in the venv directory, an ancestor
 of site-packages, and remove it afterwards. No token exists anywhere in those tests. The
@@ -199,3 +200,34 @@ def test_python_m_reads_planted_dotenv(planted_dotenv, workdir):
 def test_environment_wins_over_planted_dotenv(planted_dotenv, workdir):
     _, text, _ = _run_server(PYTHON_M_COMMAND, _server_env(PLUGVAN_LANG="en"), workdir, NO_FIELDS_CALL)
     assert text == NO_FIELDS_EN
+
+
+# The STDIO seam test's start-up hook, used in place (it is not part of the wheel): it answers
+# every httpx request in the server process with an empty Todoist results page.
+FAKE_HTTP_HOOK_DIR = REPO_ROOT / "tests" / "todoist" / "fake_todoist_http"
+# The same filter and markers as the STDIO seam test (tests/todoist/test_server_stdio.py), which
+# this module cannot import under --import-mode=importlib; keep the two in step.
+FILTER_WITH_USER_CONTENT = "#Secret Project & @private_label & search: salary"
+LEAK_MARKERS = ("api.todoist.com", "tasks/filter", "Secret", "private_label", "salary")
+
+
+@pytest.mark.parametrize("command", [CONSOLE_COMMAND, PYTHON_M_COMMAND], ids=["plugvan-mcp", "python-m"])
+def test_installed_server_does_not_log_request_urls(command, workdir):
+    """With a real HTTP response from the start-up hook, the installed server's stderr carries
+    neither the request URL nor the user's filter text."""
+    env = {**_server_env(TODOIST_API_TOKEN=FAKE_TODOIST_API_TOKEN), "PYTHONPATH": str(FAKE_HTTP_HOOK_DIR)}
+    tool_call = ("list_tasks", {"filter_query": FILTER_WITH_USER_CONTENT})
+    stderr_path = workdir / "server-stderr.log"
+    with stderr_path.open("w", encoding="utf-8") as errlog:
+        try:
+            _, text, _ = _session(command, env, workdir, errlog, tool_call)
+        except BaseException as exc:
+            errlog.flush()
+            log = stderr_path.read_text(encoding="utf-8", errors="replace")[-3000:]
+            raise AssertionError(f"{command} failed ({type(exc).__name__}); server stderr:\n{log}") from exc
+    log = stderr_path.read_text(encoding="utf-8", errors="replace")
+
+    # Only a successful HTTP response yields this message, so the request was made and answered.
+    assert text == f"ℹ️ No open tasks match the filter '{FILTER_WITH_USER_CONTENT}'.", text
+    leaked = [marker for marker in LEAK_MARKERS if marker in log]
+    assert not leaked, f"request URL or filter text reached the server's stderr {leaked}:\n{log[-3000:]}"

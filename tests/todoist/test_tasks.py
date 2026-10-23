@@ -6,7 +6,10 @@ All tests use mocks to ensure zero network calls and deterministic results.
 import logging
 from datetime import date
 from unittest.mock import MagicMock, patch
+import httpx
 import pytest
+from todoist_api_python.api import TodoistAPI
+from plugvan import todoist
 from plugvan.todoist.limits import (
     MAX_CONTENT_LENGTH,
     MAX_DESCRIPTION_LENGTH,
@@ -1212,3 +1215,44 @@ def test_http_error_body_is_logged_only_at_debug(mock_get_client, caplog, scenar
     assert all(record.levelno == logging.DEBUG for record in body_records), [
         logging.getLevelName(record.levelno) for record in body_records
     ]
+
+
+# =====================================================================
+# REQUEST URL LOGGING
+# =====================================================================
+# httpx logs every HTTP response at INFO with the full request URL, which for list_tasks carries
+# the user's filter query. The real SDK runs here against a fake transport, so the request and
+# any log line about it are httpx's own. The root conftest restores the httpx logger's level.
+
+FILTER_WITH_USER_CONTENT = "#Secret Project & @private_label & search: salary"
+# Parts of the request URL and of the filter that survive URL encoding.
+LEAK_MARKERS = ("api.todoist.com", "tasks/filter", "Secret", "private_label", "salary")
+
+
+@pytest.mark.parametrize(
+    "status, expected_message",
+    [
+        pytest.param(200, f"ℹ️ No open tasks match the filter '{FILTER_WITH_USER_CONTENT}'.", id="200"),
+        pytest.param(400, "❌ Failed to retrieve tasks from Todoist. Check server logs for details.", id="400"),
+    ],
+)
+@patch("plugvan.todoist.client.get_api_client")
+def test_list_tasks_request_url_is_not_logged(mock_get_client, caplog, status, expected_message):
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        return httpx.Response(status, json={"results": [], "next_cursor": None})
+
+    todoist.configure_logging()
+    with httpx.Client(transport=httpx.MockTransport(respond)) as http_client:
+        mock_get_client.return_value = TodoistAPI("fake-token", client=http_client)
+        # The root logger at INFO, the server's default. No level is set on the httpx logger
+        # here: that would override the code under test.
+        with caplog.at_level(logging.INFO):
+            result = list_tasks(filter_query=FILTER_WITH_USER_CONTENT)
+
+    assert result == expected_message
+    assert len(requests) == 1, "the fake transport did not answer exactly one request"
+    leaked = [marker for marker in LEAK_MARKERS if marker in caplog.text]
+    assert not leaked, f"request URL or filter text reached the logs {leaked}:\n{caplog.text}"
