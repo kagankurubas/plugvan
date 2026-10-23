@@ -4,7 +4,8 @@ stdio client (mcp.client.stdio), the way Claude Desktop runs it.
 
 It was the characterization safety net for the entry-point refactor (#59, now closed): it
 pins the observable behaviour of `python -m plugvan.todoist` (starts, speaks MCP on a clean
-stdout, publishes the snapshot's tool names, exits on stdin close, makes no network request).
+stdout, publishes the snapshot's tool names, exits on stdin close, makes no proxied network
+request).
 
 Server command: by default the current interpreter with `-m plugvan.todoist`. The environment
 variable PLUGVAN_TEST_SERVER_COMMAND selects another command; its value is a JSON array of
@@ -15,17 +16,17 @@ Hermetic subprocess: its environment is built here, never inherited wholesale. T
 client adds only its own short list of safe OS variables (PATH, SYSTEMROOT, HOME, ...). The
 server gets a fake token, no PLUGVAN_LANG and no PYTHONPATH.
 
+The one exception is the request-URL test: its server's PYTHONPATH holds only the test-side
+start-up hook that answers every HTTP request, and it calls list_tasks.
+
 Network detector: the in-process network guard does not cross the process boundary, so every
 proxy variable points at the loopback proxy from tests/conftest.py (the loopback_proxy
 fixture). It counts each connection attempt and closes it without forwarding anything, so no
-request leaves the machine, and every test asserts zero attempts once its server has exited.
+proxied request leaves the machine, and every test asserts zero attempts once its server has exited.
 Its limit: it sees only requests that honour the proxy variables; a client that bypasses them
 (for example httpx with trust_env=False) is not counted. Offline-ness also comes from what is
 called: list_tools only reads registered tool metadata, and the Todoist client is built inside
 tool bodies.
-
-The one exception is the request-URL test: its server's PYTHONPATH holds only the test-side
-start-up hook that answers every HTTP request, and it calls list_tasks.
 
 Process lifetime: every await and the whole session are bounded by timeouts. Shutdown is the
 SDK's public stdio_client behaviour: on exit it closes the server's stdin, waits, and then

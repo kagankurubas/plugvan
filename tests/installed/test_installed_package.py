@@ -8,10 +8,13 @@ module is skipped.
 Every server process starts from a temporary directory outside the checkout, without `-I`, and
 with an explicit environment (PYTHONIOENCODING=utf-8, no PYTHONPATH, no PLUGVAN_LANG unless a
 test sets it, every proxy variable on the loopback proxy from tests/conftest.py). The SDK's
-stdio client adds only its short list of safe OS variables. The proxy counts each connection
-attempt and forwards nothing, and every test asserts zero attempts once its process has exited;
-it sees only requests that honour the proxy variables. The one exception is the request-URL test: its server's
-PYTHONPATH holds only the test-side start-up hook that answers every HTTP request.
+stdio client adds only its short list of safe OS variables. The one exception is the
+request-URL test: its server's PYTHONPATH holds only the test-side start-up hook that answers
+every HTTP request.
+
+The loopback proxy counts each connection attempt and forwards nothing, and every test that
+starts a process asserts zero attempts once its process has exited. It sees only requests that
+honour the proxy variables.
 
 The .env tests plant a .env containing only PLUGVAN_LANG=tr in the venv directory, an ancestor
 of site-packages, and remove it afterwards. No token exists anywhere in those tests. The
