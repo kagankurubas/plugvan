@@ -5,8 +5,11 @@ import logging
 
 
 def configure_logging() -> None:
-    """Logs to stderr at INFO. Calling it again is a no-op (logging.basicConfig)."""
+    """Logs to stderr at INFO, with the httpx logger kept at WARNING: httpx logs every HTTP
+    response at INFO with the full request URL, which can carry the user's filter query.
+    Calling it again changes nothing (logging.basicConfig is then a no-op)."""
     logging.basicConfig(level=logging.INFO)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 def run() -> None:

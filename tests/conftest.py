@@ -10,9 +10,14 @@ The autouse network guard below makes every test offline: connections and name l
 to anything other than loopback (127.0.0.0/8, ::1, "localhost") or a Unix-domain socket
 are refused before any packet is sent. Each attempt is recorded, and a test that made
 one fails even if the code under test swallowed the error.
+
+The server's logging setup (plugvan.todoist.configure_logging) sets the process-wide httpx
+logger's level; the autouse fixture below puts it back after every test, so a test that
+runs the real setup cannot change what later tests log.
 """
 
 import ipaddress
+import logging
 import os
 import socket
 
@@ -21,6 +26,14 @@ import pytest
 os.environ["TODOIST_API_TOKEN"] = "test-todoist-token-not-real"
 # Every test starts from the code's default output language; a PLUGVAN_LANG from the shell never applies.
 os.environ.pop("PLUGVAN_LANG", None)
+
+
+@pytest.fixture(autouse=True)
+def _httpx_logger_level_restored():
+    httpx_logger = logging.getLogger("httpx")
+    level = httpx_logger.level
+    yield
+    httpx_logger.setLevel(level)
 
 
 class NetworkAccessBlocked(OSError):

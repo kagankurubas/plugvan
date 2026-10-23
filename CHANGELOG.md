@@ -11,6 +11,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `pip install plugvan-mcp`. The GitHub Release wheel URLs are gone; to
   pin a version, use `plugvan-mcp==X.Y.Z`.
 
+### Security
+- The server no longer writes Todoist request URLs to its log (#92). In
+  0.1.0 and 0.1.1, at the default INFO level, the `httpx` library wrote
+  one line to stderr for every Todoist API response, error responses
+  included, with the full request URL. For `list_tasks` that URL holds
+  the filter query, so the project names, label names and search text
+  in it reached the server log; for the other tools it holds Todoist
+  IDs. The API token, the `Authorization` header and task content were
+  never logged. The server now keeps the `httpx` logger at WARNING, so
+  its warnings and errors still appear.
+
 ### Backlog
 - `update_section`: expose `order` and `collapsed` (supported by the SDK).
 - `project_move`: needs the Sync API's separate command.
