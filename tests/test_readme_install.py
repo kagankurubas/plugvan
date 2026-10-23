@@ -1,8 +1,11 @@
 """
 Tests the Claude Desktop config examples in the README, English and Turkish sections. Every JSON
-block must parse (an unescaped Windows backslash does not), both sections must show the release
-installs (uvx with the release-asset wheel, and a venv's plugvan-mcp.exe) and the same JSON
-examples, and PYTHONPATH may only appear in the checkout config (`python -m plugvan.todoist`).
+block must parse (an unescaped Windows backslash does not), both sections must show the PyPI
+installs (uvx running `plugvan-mcp todoist`, and `pip install plugvan-mcp` into a venv whose
+plugvan-mcp.exe the config runs) and the same JSON examples, and PYTHONPATH may only appear in the
+checkout config (`python -m plugvan.todoist`). Pinning is shown only as `plugvan-mcp==X.Y.Z`: no
+release-wheel URL and no literal pinned version appear, and macOS and Linux stay marked as not
+verified.
 Blocks are found with the shared fence splitter, by the info string's first word in any case, so
 `~~~json`, ```` ```json title ```` and ```` ```PowerShell ```` blocks are checked too.
 """
@@ -17,7 +20,12 @@ from tests.readme_markdown import info_language, split_fenced
 
 README = Path(__file__).resolve().parents[1] / "README.md"
 SECTIONS = ("## English", "## Türkçe")
-WHEEL_URL = "https://github.com/kagankurubas/plugvan/releases/download/v0.1.0/plugvan_mcp-0.1.0-py3-none-any.whl"
+UVX_ARGS = ["plugvan-mcp", "todoist"]  # from PyPI, the latest release; no --from, no wheel URL
+PIN_PLACEHOLDER = "plugvan-mcp==X.Y.Z"
+NOT_VERIFIED = (
+    ("## English", "macOS and Linux with Claude Desktop have not been verified"),
+    ("## Türkçe", "Claude Desktop ile macOS ve Linux doğrulanmadı"),
+)
 CHECKOUT_ARGS = ["-m", "plugvan.todoist"]
 
 
@@ -55,13 +63,41 @@ def test_every_json_block_parses(heading):
 
 
 @pytest.mark.parametrize("heading", SECTIONS, ids=["en", "tr"])
-def test_uvx_config_runs_plugvan_mcp_todoist_from_the_release_wheel(heading):
+def test_uvx_config_runs_plugvan_mcp_todoist_from_pypi(heading):
     assert any(
         _basename(server["command"]) in {"uvx", "uvx.exe"}
-        and server["args"] == ["--from", WHEEL_URL, "plugvan-mcp", "todoist"]
+        and server["args"] == UVX_ARGS
         and "TODOIST_API_TOKEN" in server["env"]
         for server in _servers(heading)
     )
+
+
+@pytest.mark.parametrize("heading", SECTIONS, ids=["en", "tr"])
+def test_pip_installs_plugvan_mcp_from_pypi_into_the_venv(heading):
+    lines = [line.strip() for block in _blocks(_section(heading), "powershell") for line in block.splitlines()]
+    assert any(re.fullmatch(r"\S*\\scripts\\python\.exe -m pip install plugvan-mcp", line, re.IGNORECASE) for line in lines), lines
+
+
+@pytest.mark.parametrize("heading", SECTIONS, ids=["en", "tr"])
+def test_install_check_runs_uvx_plugvan_mcp_version(heading):
+    lines = [line.strip() for block in _blocks(_section(heading), "powershell") for line in block.splitlines()]
+    assert any(re.fullmatch(r"\S*uvx\.exe plugvan-mcp --version", line, re.IGNORECASE) for line in lines), lines
+
+
+@pytest.mark.parametrize("heading", SECTIONS, ids=["en", "tr"])
+def test_pinning_is_shown_only_with_a_placeholder(heading):
+    assert PIN_PLACEHOLDER in _section(heading)
+
+
+def test_no_release_wheel_url_and_no_literal_pinned_version():
+    text = README.read_text(encoding="utf-8")
+    assert "releases/download/" not in text
+    assert not re.findall(r"plugvan-mcp==\d", text), re.findall(r"plugvan-mcp==\S*", text)
+
+
+@pytest.mark.parametrize("heading, sentence", NOT_VERIFIED, ids=["en", "tr"])
+def test_macos_and_linux_are_still_marked_not_verified(heading, sentence):
+    assert sentence in _section(heading)
 
 
 @pytest.mark.parametrize("heading", SECTIONS, ids=["en", "tr"])
@@ -91,4 +127,13 @@ def test_powershell_blocks_do_not_run_bare_where():
     blocks = _blocks(README.read_text(encoding="utf-8"), "powershell")
     assert blocks
     offending = [block for block in blocks if re.search(r"(?m)^\s*where\s", block)]
+    assert not offending, offending
+
+
+def test_powershell_blocks_use_no_alias_traps():
+    # PowerShell aliases that shadow the familiar programs: where (Where-Object), curl and cat and ls
+    # (Invoke-WebRequest, Get-Content, Get-ChildItem in Windows PowerShell), sc (Set-Content).
+    blocks = _blocks(README.read_text(encoding="utf-8"), "powershell")
+    offending = [line for block in blocks for line in block.splitlines()
+                 if re.match(r"\s*(where|curl|cat|ls|sc)(\s|$)", line, re.IGNORECASE)]
     assert not offending, offending
