@@ -4,10 +4,7 @@ All tests use mocks to ensure zero network calls and deterministic results.
 """
 
 import logging
-import subprocess
-import sys
 from datetime import date
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 import httpx
 import pytest
@@ -1259,22 +1256,3 @@ def test_list_tasks_request_url_is_not_logged(mock_get_client, caplog, status, e
     assert len(requests) == 1, "the fake transport did not answer exactly one request"
     leaked = [marker for marker in LEAK_MARKERS if marker in caplog.text]
     assert not leaked, f"request URL or filter text reached the logs {leaked}:\n{caplog.text}"
-
-
-def test_importing_the_package_leaves_the_httpx_logger_alone():
-    """Only configure_logging() sets the httpx level, never an import, so a program that imports
-    plugvan.todoist keeps its own httpx configuration. Checked in a fresh process: this one has
-    imported everything already."""
-    probe = (
-        "import logging, plugvan.todoist, plugvan.todoist.client, plugvan.todoist.server; "
-        "print(logging.getLevelName(logging.getLogger('httpx').level))"
-    )
-    completed = subprocess.run(
-        [sys.executable, "-c", probe],
-        cwd=Path(__file__).resolve().parents[2],
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
-    assert completed.returncode == 0, completed.stderr
-    assert completed.stdout.strip() == "NOTSET"

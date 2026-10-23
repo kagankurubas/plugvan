@@ -205,8 +205,8 @@ def test_environment_wins_over_planted_dotenv(planted_dotenv, workdir):
 # The STDIO seam test's start-up hook, used in place (it is not part of the wheel): it answers
 # every httpx request in the server process with an empty Todoist results page.
 FAKE_HTTP_HOOK_DIR = REPO_ROOT / "tests" / "todoist" / "fake_todoist_http"
-# The same filter and markers as the STDIO seam test, which this module cannot import under
-# --import-mode=importlib.
+# The same filter and markers as the STDIO seam test (tests/todoist/test_server_stdio.py), which
+# this module cannot import under --import-mode=importlib; keep the two in step.
 FILTER_WITH_USER_CONTENT = "#Secret Project & @private_label & search: salary"
 LEAK_MARKERS = ("api.todoist.com", "tasks/filter", "Secret", "private_label", "salary")
 

@@ -21,6 +21,9 @@ never called. As a second line, every proxy variable points at a closed loopback
 an accidental HTTP request could not leave the machine; the test also asserts that the server
 logged no HTTP request.
 
+The one exception is the request-URL test: its server's PYTHONPATH holds only the test-side
+start-up hook that answers every HTTP request, and it calls list_tasks.
+
 Process lifetime: every await and the whole session are bounded by timeouts. Shutdown is the
 SDK's public stdio_client behaviour: on exit it closes the server's stdin, waits, and then
 terminates the process tree. The stdin-close test drives its own subprocess and kills it if
@@ -136,6 +139,8 @@ def test_server_lists_snapshot_tool_names_over_stdio(tmp_path):
 FAKE_HTTP_HOOK_DIR = Path(__file__).resolve().parent / "fake_todoist_http"
 FILTER_WITH_USER_CONTENT = "#Secret Project & @private_label & search: salary"
 # Parts of the request URL and of the filter that survive URL encoding.
+# The installed-mode module defines the same values: it cannot import this module under
+# --import-mode=importlib.
 LEAK_MARKERS = ("api.todoist.com", "tasks/filter", "Secret", "private_label", "salary")
 
 
