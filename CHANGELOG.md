@@ -4,6 +4,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Backlog
+- `update_section`: expose `order` and `collapsed` (supported by the SDK).
+- `project_move`: needs the Sync API's separate command.
+
+## [0.1.2] - 2026-10-24
+
+This release keeps Todoist request URLs out of the server's default log
+(see Security) and moves the README's install sections to PyPI. It
+contains the changes tested in 0.1.2rc1.
+
 ### Changed
 - The README's install sections, in English and Turkish, install from
   PyPI (#79): Claude Desktop runs `uvx plugvan-mcp todoist`, or the
@@ -24,9 +34,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   written by those versions may still contain such lines and should be
   reviewed or cleared before they are shared.
 
-### Backlog
-- `update_section`: expose `order` and `collapsed` (supported by the SDK).
-- `project_move`: needs the Sync API's separate command.
+### Upgrading
+- 0.1.0 and 0.1.1 write Todoist request URLs to the server log, so
+  upgrade and restart Claude Desktop. With pip, run
+  `pip install --upgrade plugvan-mcp` in the virtual environment. With
+  uvx, which may keep running a cached copy, run
+  `uvx --refresh plugvan-mcp --version` once; it should print
+  `plugvan-mcp 0.1.2`.
 
 ## [0.1.2rc1] - 2026-10-24
 
