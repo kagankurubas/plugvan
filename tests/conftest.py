@@ -14,12 +14,18 @@ one fails even if the code under test swallowed the error.
 The server's logging setup (plugvan.todoist.configure_logging) sets the process-wide httpx
 logger's level; the autouse fixture below puts it back after every test, so a test that
 runs the real setup cannot change what later tests log.
+
+The loopback_proxy fixture is a network detector for server subprocesses, which the
+in-process guard cannot reach: a stand-in proxy on 127.0.0.1 that only counts connection
+attempts and closes them without forwarding anything. It sees only requests that honour the
+proxy variables pointed at it.
 """
 
 import ipaddress
 import logging
 import os
 import socket
+import threading
 
 import pytest
 
@@ -34,6 +40,80 @@ def _httpx_logger_level_restored():
     level = httpx_logger.level
     yield
     httpx_logger.setLevel(level)
+
+
+class LoopbackProxy:
+    """A stand-in proxy on 127.0.0.1 that only counts connections: it accepts each TCP connection
+    and closes it at once, without reading or forwarding anything. Point a subprocess's proxy
+    variables at `url`, then call attempts() after the subprocess has finished. The count can
+    only err low, never raise a false alarm: a platform may drop a connection that was reset
+    before it was accepted."""
+
+    ACCEPT_POLL = 0.1  # seconds; how often the accept loop checks for shutdown
+    STOP_TIMEOUT = 5  # seconds, for the accept thread to finish
+    MAX_CONSECUTIVE_ERRORS = 100  # resets in a row that end the loop instead of spinning
+
+    def __init__(self):
+        self._listener = socket.create_server(("127.0.0.1", 0))
+        self._listener.settimeout(self.ACCEPT_POLL)
+        self.url = f"http://127.0.0.1:{self._listener.getsockname()[1]}"
+        self._count = 0
+        self._consecutive_errors = 0
+        self._closed = False
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._serve, daemon=True)
+        self._thread.start()
+
+    def _accept_one(self) -> bool:
+        """Accepts and closes one waiting connection. Returns False when none is waiting, when
+        accept fails for any reason other than a reset or aborted connection, or after
+        MAX_CONSECUTIVE_ERRORS resets in a row."""
+        try:
+            connection, _ = self._listener.accept()
+        except (TimeoutError, BlockingIOError):
+            return False
+        except (ConnectionResetError, ConnectionAbortedError):
+            # A connection reset or aborted before it was accepted is still an attempt.
+            self._count += 1
+            self._consecutive_errors += 1
+            return self._consecutive_errors < self.MAX_CONSECUTIVE_ERRORS
+        except OSError:
+            # Any other failure (a closed listener, for one) is no attempt: stop instead of counting.
+            self._stop.set()
+            return False
+        self._consecutive_errors = 0
+        self._count += 1
+        connection.close()
+        return True
+
+    def _serve(self) -> None:
+        while not self._stop.is_set() and self._consecutive_errors < self.MAX_CONSECUTIVE_ERRORS:
+            self._accept_one()
+
+    def attempts(self) -> int:
+        """Stops the proxy, counts the connections still waiting to be accepted, and returns the
+        number of connection attempts. The listening socket is closed on every path. Later calls
+        return the same number."""
+        if not self._closed:
+            self._stop.set()
+            try:
+                self._thread.join(self.STOP_TIMEOUT)
+                if not self._thread.is_alive():
+                    self._listener.setblocking(False)
+                    while self._accept_one():
+                        pass
+            finally:
+                self._listener.close()
+                self._closed = True
+            assert not self._thread.is_alive(), "the loopback proxy's accept thread did not stop"
+        return self._count
+
+
+@pytest.fixture
+def loopback_proxy():
+    proxy = LoopbackProxy()
+    yield proxy
+    proxy.attempts()  # stops the proxy if the test did not
 
 
 class NetworkAccessBlocked(OSError):

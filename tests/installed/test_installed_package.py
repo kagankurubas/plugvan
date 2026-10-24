@@ -7,9 +7,14 @@ module is skipped.
 
 Every server process starts from a temporary directory outside the checkout, without `-I`, and
 with an explicit environment (PYTHONIOENCODING=utf-8, no PYTHONPATH, no PLUGVAN_LANG unless a
-test sets it, proxies pointed at a closed loopback port). The SDK's stdio client adds only its
-short list of safe OS variables. The one exception is the request-URL test: its server's
-PYTHONPATH holds only the test-side start-up hook that answers every HTTP request.
+test sets it, every proxy variable on the loopback proxy from tests/conftest.py). The SDK's
+stdio client adds only its short list of safe OS variables. The one exception is the
+request-URL test: its server's PYTHONPATH holds only the test-side start-up hook that answers
+every HTTP request.
+
+The loopback proxy counts each connection attempt and forwards nothing, and every test that
+starts a process asserts zero attempts once its process has exited. It sees only requests that
+honour the proxy variables.
 
 The .env tests plant a .env containing only PLUGVAN_LANG=tr in the venv directory, an ancestor
 of site-packages, and remove it afterwards. No token exists anywhere in those tests. The
@@ -52,7 +57,6 @@ PYTHON_M_COMMAND = [str(VENV_PYTHON), "-m", "plugvan.todoist"]
 STEP_TIMEOUT = 30  # seconds, per await and per process wait
 SCENARIO_TIMEOUT = 90  # seconds, a whole server session
 FAKE_TODOIST_API_TOKEN = "test-todoist-token-not-real"
-UNREACHABLE_PROXY = "http://127.0.0.1:9"
 
 # The task.update.no_fields message in both catalogs, exactly as recorded in #56.
 NO_FIELDS_EN = (
@@ -67,13 +71,14 @@ NO_FIELDS_TR = (
 )
 
 
-def _server_env(**extra: str) -> dict[str, str]:
-    """The server's own variables: never PYTHONPATH, PLUGVAN_LANG only when passed in."""
+def _server_env(proxy_url: str, **extra: str) -> dict[str, str]:
+    """The server's own variables, every proxy variable on the loopback proxy (tests/conftest.py):
+    never PYTHONPATH, PLUGVAN_LANG only when passed in."""
     return {
         "PYTHONIOENCODING": "utf-8",
-        "HTTP_PROXY": UNREACHABLE_PROXY,
-        "HTTPS_PROXY": UNREACHABLE_PROXY,
-        "ALL_PROXY": UNREACHABLE_PROXY,
+        "HTTP_PROXY": proxy_url,
+        "HTTPS_PROXY": proxy_url,
+        "ALL_PROXY": proxy_url,
         "NO_PROXY": "",
         **extra,
     }
@@ -118,8 +123,6 @@ def _run_server(command, env, workdir: Path, tool_call=None):
             errlog.flush()
             log = stderr_path.read_text(encoding="utf-8", errors="replace")[-3000:]
             raise AssertionError(f"{command} failed ({type(exc).__name__}); server stderr:\n{log}") from exc
-    log = stderr_path.read_text(encoding="utf-8", errors="replace")
-    assert "HTTP Request" not in log, "the server made an HTTP request"
     return result
 
 
@@ -141,11 +144,11 @@ def test_plugvan_is_imported_from_the_venv_site_packages():
     assert site_packages in Path(plugvan.__file__).resolve().parents, plugvan.__file__
 
 
-def test_version_matches_pyproject(workdir):
+def test_version_matches_pyproject(workdir, loopback_proxy):
     result = subprocess.run(
         [str(CONSOLE_SCRIPT), "--version"],
         cwd=workdir,
-        env={**get_default_environment(), **_server_env()},
+        env={**get_default_environment(), **_server_env(loopback_proxy.url)},
         capture_output=True,
         text=True,
         timeout=STEP_TIMEOUT,
@@ -157,16 +160,18 @@ def test_version_matches_pyproject(workdir):
     assert result.returncode == 0, result.stderr
     assert result.stdout == f"plugvan-mcp {pyproject_version}\n"
     assert metadata.version("plugvan-mcp") == pyproject_version
+    assert loopback_proxy.attempts() == 0, "the console script tried to reach the network"
 
 
 @pytest.mark.parametrize("command", [CONSOLE_COMMAND, PYTHON_M_COMMAND], ids=["plugvan-mcp", "python-m"])
-def test_installed_server_lists_snapshot_tool_names(command, workdir):
-    env = _server_env(TODOIST_API_TOKEN=FAKE_TODOIST_API_TOKEN)
+def test_installed_server_lists_snapshot_tool_names(command, workdir, loopback_proxy):
+    env = _server_env(loopback_proxy.url, TODOIST_API_TOKEN=FAKE_TODOIST_API_TOKEN)
     names, _, stray_output = _run_server(command, env, workdir)
 
     expected = _expected_tool_names()
     assert names == expected, f"missing: {sorted(expected - names)}, unexpected: {sorted(names - expected)}"
     assert not stray_output, f"server wrote non-protocol output to stdout: {stray_output[:3]}"
+    assert loopback_proxy.attempts() == 0, "the server tried to reach the network"
 
 
 @pytest.fixture
@@ -187,19 +192,22 @@ def planted_dotenv():
 NO_FIELDS_CALL = ("update_task", {"task_id": "1"})
 
 
-def test_console_script_does_not_read_planted_dotenv(planted_dotenv, workdir):
-    _, text, _ = _run_server(CONSOLE_COMMAND, _server_env(), workdir, NO_FIELDS_CALL)
+def test_console_script_does_not_read_planted_dotenv(planted_dotenv, workdir, loopback_proxy):
+    _, text, _ = _run_server(CONSOLE_COMMAND, _server_env(loopback_proxy.url), workdir, NO_FIELDS_CALL)
     assert text == NO_FIELDS_EN
+    assert loopback_proxy.attempts() == 0, "the server tried to reach the network without a token"
 
 
-def test_python_m_reads_planted_dotenv(planted_dotenv, workdir):
-    _, text, _ = _run_server(PYTHON_M_COMMAND, _server_env(), workdir, NO_FIELDS_CALL)
+def test_python_m_reads_planted_dotenv(planted_dotenv, workdir, loopback_proxy):
+    _, text, _ = _run_server(PYTHON_M_COMMAND, _server_env(loopback_proxy.url), workdir, NO_FIELDS_CALL)
     assert text == NO_FIELDS_TR
+    assert loopback_proxy.attempts() == 0, "the server tried to reach the network without a token"
 
 
-def test_environment_wins_over_planted_dotenv(planted_dotenv, workdir):
-    _, text, _ = _run_server(PYTHON_M_COMMAND, _server_env(PLUGVAN_LANG="en"), workdir, NO_FIELDS_CALL)
+def test_environment_wins_over_planted_dotenv(planted_dotenv, workdir, loopback_proxy):
+    _, text, _ = _run_server(PYTHON_M_COMMAND, _server_env(loopback_proxy.url, PLUGVAN_LANG="en"), workdir, NO_FIELDS_CALL)
     assert text == NO_FIELDS_EN
+    assert loopback_proxy.attempts() == 0, "the server tried to reach the network without a token"
 
 
 # The STDIO seam test's start-up hook, used in place (it is not part of the wheel): it answers
@@ -212,10 +220,10 @@ LEAK_MARKERS = ("api.todoist.com", "tasks/filter", "Secret", "private_label", "s
 
 
 @pytest.mark.parametrize("command", [CONSOLE_COMMAND, PYTHON_M_COMMAND], ids=["plugvan-mcp", "python-m"])
-def test_installed_server_does_not_log_request_urls(command, workdir):
+def test_installed_server_does_not_log_request_urls(command, workdir, loopback_proxy):
     """With a real HTTP response from the start-up hook, the installed server's stderr carries
     neither the request URL nor the user's filter text."""
-    env = {**_server_env(TODOIST_API_TOKEN=FAKE_TODOIST_API_TOKEN), "PYTHONPATH": str(FAKE_HTTP_HOOK_DIR)}
+    env = {**_server_env(loopback_proxy.url, TODOIST_API_TOKEN=FAKE_TODOIST_API_TOKEN), "PYTHONPATH": str(FAKE_HTTP_HOOK_DIR)}
     tool_call = ("list_tasks", {"filter_query": FILTER_WITH_USER_CONTENT})
     stderr_path = workdir / "server-stderr.log"
     with stderr_path.open("w", encoding="utf-8") as errlog:
@@ -231,3 +239,5 @@ def test_installed_server_does_not_log_request_urls(command, workdir):
     assert text == f"ℹ️ No open tasks match the filter '{FILTER_WITH_USER_CONTENT}'.", text
     leaked = [marker for marker in LEAK_MARKERS if marker in log]
     assert not leaked, f"request URL or filter text reached the server's stderr {leaked}:\n{log[-3000:]}"
+    # The start-up hook answers in-process, so the one request never reaches the proxy.
+    assert loopback_proxy.attempts() == 0, "the server tried to reach the network"
