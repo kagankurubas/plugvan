@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "plugvan-mcp"
-version = "0.1.1"
+version = "0.1.2rc1"
 description = "Todoist tools for Claude Desktop as an MCP server over STDIO."
 readme = "README.md"
 requires-python = ">=3.10"

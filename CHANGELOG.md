@@ -28,6 +28,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `update_section`: expose `order` and `collapsed` (supported by the SDK).
 - `project_move`: needs the Sync API's separate command.
 
+## [0.1.2rc1] - 2026-10-24
+
+Release candidate for 0.1.2, published to TestPyPI only to rehearse the
+PyPI release; it is not uploaded to PyPI.
+
 ## [0.1.1] - 2026-10-20
 
 The first release published to PyPI: `plugvan-mcp` 0.1.1 installs from
